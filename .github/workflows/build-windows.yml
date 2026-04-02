@@ -14,8 +14,15 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Python for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
         run: npm ci
+        env:
+          npm_config_python: python
 
       - name: Build
         run: npm run build
@@ -27,7 +34,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: DiktuvAI-Windows
-          path: release/*.exe
+          path: |
+            release/*.exe
+            release/*.nsis
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
