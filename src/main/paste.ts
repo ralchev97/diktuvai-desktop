@@ -128,38 +128,35 @@ async function activateAppMac(appName: string, bundleId: string): Promise<boolea
  * Perform Cmd+V paste on macOS using AppleScript.
  */
 async function doPasteMac(): Promise<boolean> {
-  // Method 1: Use System Events keystroke (most reliable when Accessibility is granted)
+  // Combined: activate app + paste in one osascript call (atomic, no race condition)
+  const bundleId = lastActiveAppBundleId
+  const appName = lastActiveApp
+
   try {
-    await execAsync(
-      'osascript -e \'tell application "System Events" to keystroke "v" using command down\''
-    )
-    log('Paste via System Events keystroke OK')
+    const script = bundleId
+      ? `tell application id "${bundleId}" to activate
+         delay 0.15
+         tell application "System Events" to key code 9 using command down`
+      : `tell application "${appName}" to activate
+         delay 0.15
+         tell application "System Events" to key code 9 using command down`
+
+    await execAsync(`osascript -e '${script}'`)
+    log('Paste via atomic osascript OK')
     return true
   } catch (e) {
-    log(`Keystroke paste failed: ${e}`)
+    log(`Atomic paste failed: ${e}`)
   }
 
-  // Method 2: Use key code instead of keystroke
+  // Fallback: separate calls
   try {
     await execAsync(
       'osascript -e \'tell application "System Events" to key code 9 using command down\''
     )
-    log('Paste via key code OK')
+    log('Paste via key code fallback OK')
     return true
   } catch (e) {
     log(`Key code paste failed: ${e}`)
-  }
-
-  // Method 3: CGEvent binary fallback
-  const pasteBinary = path.join(app.getPath('userData'), 'diktuvai_paste')
-  if (fs.existsSync(pasteBinary)) {
-    try {
-      await execAsync(`"${pasteBinary}"`)
-      log('Paste via CGEvent binary OK')
-      return true
-    } catch (e) {
-      log(`CGEvent paste failed: ${e}`)
-    }
   }
 
   return false
@@ -240,20 +237,7 @@ async function pasteOnMac(text: string): Promise<void> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     log(`Paste attempt ${attempt}/${maxRetries}`)
 
-    // Step 1: Activate the target app
-    if (lastActiveApp) {
-      const activated = await activateAppMac(lastActiveApp, lastActiveAppBundleId)
-      if (!activated) {
-        log(`Failed to activate app on attempt ${attempt}`)
-        await sleep(300)
-        continue
-      }
-    }
-
-    // Step 2: Extra wait for the app to be fully ready for input
-    await sleep(200)
-
-    // Step 3: Ensure clipboard still has our text (another app might have changed it)
+    // Ensure clipboard still has our text
     const currentClip = clipboard.readText()
     if (currentClip !== text) {
       log(`Clipboard was changed, re-setting`)
@@ -265,11 +249,10 @@ async function pasteOnMac(text: string): Promise<void> {
       await sleep(50)
     }
 
-    // Step 4: Paste
+    // Paste (includes app activation)
     const pasted = await doPasteMac()
     if (pasted) {
       log(`Paste command sent successfully on attempt ${attempt}`)
-      // Give the app time to process the paste
       await sleep(200)
       return
     }
@@ -369,9 +352,9 @@ export async function getActiveAppName(): Promise<string> {
  */
 export async function playSound(sound: 'start' | 'stop' | 'error'): Promise<void> {
   if (isMac) {
-    const soundMap = { start: 'Tink', stop: 'Pop', error: 'Basso' }
+    const soundMap = { start: 'Tink', stop: 'Tink', error: 'Basso' }
     try {
-      exec(`afplay /System/Library/Sounds/${soundMap[sound]}.aiff`)
+      exec(`afplay -v 0.6 /System/Library/Sounds/${soundMap[sound]}.aiff`)
     } catch { /* ignore */ }
   } else if (isWin) {
     const soundMap = {

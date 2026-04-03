@@ -34,20 +34,21 @@ export interface AudioRecordingResult {
  * macOS priority: sox (rec) > ffmpeg > native Swift binary
  * Windows priority: ffmpeg > PowerShell .NET
  */
+// Cache tool check result
+let cachedTools: { sox: boolean; ffmpeg: boolean; swift: boolean } | null = null
+
 export async function startRecording(deviceName?: string): Promise<void> {
   currentTempPath = path.join(app.getPath('temp'), `diktuvai_recording_${Date.now()}.wav`)
   recordingStartTime = Date.now()
 
-  const tools = await checkRecordingTools()
+  // Use cached tools check (don't re-check every time)
+  if (!cachedTools) cachedTools = await checkRecordingTools()
+  const tools = cachedTools
 
   if (isMac) {
-    if (tools.ffmpeg) {
-      startRecordingFfmpegMac(currentTempPath)
-    } else if (tools.sox) {
-      startRecordingSox(currentTempPath, deviceName)
-    } else {
-      startRecordingNativeMac(currentTempPath)
-    }
+    // Native Swift is fastest (~50ms startup vs ~300ms for ffmpeg)
+    startRecordingNativeMac(currentTempPath)
+
   } else if (isWin) {
     if (tools.ffmpeg) {
       startRecordingFfmpegWin(currentTempPath, deviceName)
@@ -82,9 +83,11 @@ function startRecordingSox(tempPath: string, deviceName?: string): void {
 function startRecordingFfmpegMac(tempPath: string): void {
   recordingProcess = spawn('ffmpeg', [
     '-f', 'avfoundation',
+    '-audio_device_index', '0',
     '-i', ':default',
     '-ar', '16000', '-ac', '1',
     '-acodec', 'pcm_s16le',
+    '-flush_packets', '1',
     '-y', tempPath
   ], { stdio: ['pipe', 'pipe', 'pipe'] })
 
@@ -165,22 +168,31 @@ RunLoop.current.run()
  * Record audio using pre-compiled native macOS binary.
  */
 function startRecordingNativeMac(tempPath: string): void {
-  ensureRecorderCompiled().then((binaryPath) => {
-    recordingProcess = spawn(binaryPath, [tempPath], {
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
+  const binaryPath = compiledBinaryPath || path.join(app.getPath('userData'), 'diktuvai_recorder')
 
-    recordingProcess.stderr?.on('data', (data: Buffer) => {
-      const msg = data.toString().trim()
-      if (msg) log(`Recorder: ${msg}`)
+  if (!fs.existsSync(binaryPath)) {
+    // Fallback to compile, then ffmpeg
+    ensureRecorderCompiled().then((bp) => {
+      startRecordingNativeMac(tempPath)
+    }).catch(() => {
+      startRecordingFfmpegMac(tempPath)
     })
+    return
+  }
 
-    recordingProcess.on('error', (err: Error) => {
-      log(`Recorder error: ${err.message}`)
-      recordingProcess = null
-    })
-  }).catch((err) => {
-    log(`Compile error: ${err.message}`)
+  recordingProcess = spawn(binaryPath, [tempPath], {
+    stdio: ['pipe', 'pipe', 'pipe']
+  })
+
+  recordingProcess.stderr?.on('data', (data: Buffer) => {
+    const msg = data.toString().trim()
+    if (msg) log(`Recorder: ${msg}`)
+  })
+
+  recordingProcess.on('error', (err: Error) => {
+    log(`Native recorder error: ${err.message}, falling back to ffmpeg`)
+    recordingProcess = null
+    startRecordingFfmpegMac(tempPath)
   })
 }
 

@@ -59,6 +59,12 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, stats: unknown) => callback(stats)
     ipcRenderer.on('stats:update', handler)
     return () => ipcRenderer.removeListener('stats:update', handler)
+  },
+
+  onAudioLevel: (callback: (level: number) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, level: number) => callback(level)
+    ipcRenderer.on('audio:level', handler)
+    return () => ipcRenderer.removeListener('audio:level', handler)
   }
 }
 

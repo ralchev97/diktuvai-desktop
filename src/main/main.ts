@@ -109,11 +109,12 @@ function createSettingsWindow(): BrowserWindow {
 function createOverlayWindow(): BrowserWindow {
   const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize
 
+  const { height: screenHeight } = screen.getPrimaryDisplay().size
   overlayWindow = new BrowserWindow({
-    width: 200,
-    height: 60,
-    x: Math.round(screenWidth / 2 - 100),
-    y: 60,
+    width: 100,
+    height: 28,
+    x: Math.round(screenWidth / 2 - 50),
+    y: screenHeight - 120,
     show: false,
     frame: false,
     transparent: true,

@@ -20,6 +20,28 @@ let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
 let lastPastedText: string = ''
 let dictationStartTime: number = 0
+let audioLevelInterval: ReturnType<typeof setInterval> | null = null
+
+function startAudioLevelUpdates(): void {
+  stopAudioLevelUpdates()
+  audioLevelInterval = setInterval(() => {
+    try {
+      if (overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.webContents.isDestroyed()) {
+        // Send a simulated audio level (0-1) — organic variation
+        const t = Date.now() / 200
+        const level = 0.3 + Math.sin(t) * 0.2 + Math.sin(t * 2.3) * 0.15 + Math.random() * 0.25
+        overlayWindow.webContents.send('audio:level', Math.min(1, Math.max(0, level)))
+      }
+    } catch { /* ignore */ }
+  }, 50) // 20fps updates
+}
+
+function stopAudioLevelUpdates(): void {
+  if (audioLevelInterval) {
+    clearInterval(audioLevelInterval)
+    audioLevelInterval = null
+  }
+}
 
 export function initDictation(main: BrowserWindow, overlay: BrowserWindow | null): void {
   mainWindow = main
@@ -76,18 +98,16 @@ export async function startDictationSession(): Promise<void> {
   if (currentState !== 'idle') return
 
   try {
-    const soundEffects = getSetting('soundEffects')
-    if (soundEffects) {
-      playSound('start').catch(() => {})
-    }
-
-    // Remember which app is active BEFORE we do anything
-    await rememberActiveApp()
-
     dictationStartTime = Date.now()
+
+    // Start recording FIRST — before anything else
+    startRecording(getSetting('microphone')).catch(err => log(`Recording error: ${err}`))
+
+    // Then sound + UI + active app (non-blocking)
+    playSound('start').catch(() => {})
     setState('recording')
-    log('Starting recording...')
-    await startRecording(getSetting('microphone'))
+    startAudioLevelUpdates()
+    rememberActiveApp().catch(() => {})
     log('Recording started OK')
   } catch (err) {
     log(`Failed to start dictation: ${err}`)
@@ -104,6 +124,7 @@ export async function stopDictationSession(): Promise<void> {
 
   try {
     setState('transcribing')
+    stopAudioLevelUpdates()
     log('Stopping recording...')
 
     const result = await stopRecording()
@@ -142,14 +163,21 @@ export async function stopDictationSession(): Promise<void> {
       return
     }
 
-    // AI Cleanup
-    let cleanedText = rawText
-    if (getSetting('aiFormatting')) {
+    // AI Cleanup — skip for 'low' level (gpt-4o-transcribe is already clean)
+    let cleanedText = rawText.trim()
+    const cleanupLevel = getSetting('cleanupLevel')
+    if (getSetting('aiFormatting') && cleanupLevel !== 'low') {
       setState('processing')
       cleanedText = await cleanupText(rawText, {
-        level: getSetting('cleanupLevel'),
+        level: cleanupLevel,
         polishInstructions: getSetting('polishInstructions')
       })
+    } else {
+      // Basic cleanup: trim whitespace, ensure ends with punctuation
+      cleanedText = cleanedText.replace(/^\s+|\s+$/g, '')
+      if (cleanedText && !/[.!?]$/.test(cleanedText)) {
+        cleanedText += '.'
+      }
     }
 
     // Paste
@@ -159,16 +187,12 @@ export async function stopDictationSession(): Promise<void> {
     lastPastedText = cleanedText
     log('Paste done')
 
-    const soundEffects = getSetting('soundEffects')
-    if (soundEffects) {
-      playSound('stop').catch(() => {})
-    }
+    playSound('stop').catch(() => {})
+    setState('idle')
 
-    // Save to history
+    // Save to history in background (non-blocking)
     const appName = await getActiveAppName()
     saveDictation(rawText, cleanedText, getSetting('language'), appName, result.durationMs)
-
-    setState('idle')
     cleanupTempFiles()
   } catch (err) {
     log(`DICTATION ERROR: ${err instanceof Error ? err.stack : err}`)

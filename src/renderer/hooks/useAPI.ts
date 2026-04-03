@@ -34,6 +34,7 @@ declare global {
       completeOnboarding: () => Promise<boolean>
       onDictationState: (callback: (state: string, data?: unknown) => void) => () => void
       onStats: (callback: (stats: unknown) => void) => () => void
+      onAudioLevel: (callback: (level: number) => void) => () => void
     }
   }
 }
@@ -85,6 +86,19 @@ export function useStats() {
   }, [])
 
   return stats
+}
+
+export function useAudioLevel() {
+  const [level, setLevel] = useState(0)
+
+  useEffect(() => {
+    const cleanup = api?.onAudioLevel?.((newLevel) => {
+      setLevel(newLevel)
+    })
+    return cleanup
+  }, [])
+
+  return level
 }
 
 export { api }

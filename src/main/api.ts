@@ -58,23 +58,18 @@ function getCleanupClient(): OpenAI {
  * Transcribe audio using Groq Whisper API (direct, no proxy).
  */
 export async function transcribeAudio(audioFilePath: string, language?: string): Promise<string> {
-  const groq = getGroqClient()
+  const client = getCleanupClient() // OpenAI client for gpt-4o-transcribe
   const langSetting = language || getSetting('language')
   const lang = langSetting === 'auto' ? undefined : langSetting
 
-  // Use prompt to improve transcription accuracy for Bulgarian
-  const promptHint = lang === 'bg'
-    ? 'Транскрипция на български език. Правилно разпознаване на българска реч.'
-    : lang === 'en'
-    ? 'Transcription of English speech.'
-    : undefined
-
-  const transcription = await groq.audio.transcriptions.create({
+  const transcription = await client.audio.transcriptions.create({
     file: fs.createReadStream(audioFilePath),
-    model: 'whisper-large-v3-turbo',
+    model: 'gpt-4o-transcribe',
     language: lang === 'bg' ? 'bg' : lang === 'en' ? 'en' : undefined,
     response_format: 'text',
-    ...(promptHint ? { prompt: promptHint } : {})
+    prompt: lang === 'bg'
+      ? 'Точна транскрипция на българска реч, дума по дума. Запази всяка дума точно както е казана, включително имена на хора. Не пропускай думи и не ги заменяй.'
+      : undefined,
   })
 
   return transcription as unknown as string
@@ -286,8 +281,13 @@ function buildCleanupPrompt(
     reorderForReadability: boolean
   }
 ): string {
-  let prompt = `You are a text editor for voice dictation. Clean up the following transcription:
-- Remove filler words and false starts`
+  let prompt = `You are a Bulgarian language expert and text editor for voice dictation. Clean up the following transcription.
+CRITICAL: You MUST use correct Bulgarian grammar and spelling. Pay special attention to:
+- Verb forms: "допуснеш" (not "допуснаш"), "кажеш" (not "кажаш"), "направиш" (not "направиш")
+- Second person singular: always use "е" not "а" in present tense (пишеш, четеш, видиш)
+- Preserve the speaker's exact words — do NOT remove content words or replace them with synonyms
+- Only remove obvious filler words (ъъъ, ааа, um, uh) and false starts where the speaker restarts a sentence
+- NEVER remove words that carry meaning, even if they seem unusual in context`
 
   if (level === 'low') {
     prompt += `
