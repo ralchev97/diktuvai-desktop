@@ -1,6 +1,6 @@
 {
   "name": "diktuvai",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "DiktuvAI - Гласово диктуване с AI за България",
   "main": "dist/main/main.js",
   "scripts": {
