@@ -1,7 +1,7 @@
 import { BrowserWindow, app } from 'electron'
 import { startRecording, stopRecording, cancelRecording, isRecording, cleanupTempFiles } from './audio'
 import { transcribeAudio, cleanupText, processCommand } from './api'
-import { pasteText, undoLastPaste, getSelectedText, getActiveAppName, playSound, rememberActiveApp, muteMusic, unmuteMusic } from './paste'
+import { pasteText, undoLastPaste, getSelectedText, getActiveAppName, playSound, rememberActiveApp } from './paste'
 import { saveDictation, getSnippets } from './db'
 import { getSetting } from './store'
 import fs from 'fs'
@@ -14,22 +14,6 @@ function log(msg: string): void {
 }
 
 export type DictationState = 'idle' | 'recording' | 'transcribing' | 'processing' | 'pasting' | 'error'
-
-// Map apps to writing style categories
-const PERSONAL_APPS = ['whatsapp', 'telegram', 'messenger', 'discord', 'instagram', 'viber', 'signal', 'imessage', 'messages']
-const WORK_APPS = ['slack', 'teams', 'zoom', 'notion', 'linear', 'jira', 'asana', 'trello', 'basecamp']
-const EMAIL_APPS = ['mail', 'gmail', 'outlook', 'thunderbird', 'spark', 'airmail', 'superhuman']
-
-function getStyleForApp(appName: string): string {
-  const writingStyle = getSetting('writingStyle')
-  const app = appName.toLowerCase()
-
-  if (PERSONAL_APPS.some(a => app.includes(a))) return writingStyle.personal
-  if (WORK_APPS.some(a => app.includes(a))) return writingStyle.work
-  if (EMAIL_APPS.some(a => app.includes(a))) return writingStyle.email
-
-  return 'neutral'
-}
 
 let currentState: DictationState = 'idle'
 let mainWindow: BrowserWindow | null = null
@@ -119,9 +103,6 @@ export async function startDictationSession(): Promise<void> {
     // Start recording FIRST — before anything else
     startRecording(getSetting('microphone')).catch(err => log(`Recording error: ${err}`))
 
-    // Mute music if enabled
-    if (getSetting('muteMusic')) muteMusic().catch(() => {})
-
     // Then sound + UI + active app (non-blocking)
     playSound('start').catch(() => {})
     setState('recording')
@@ -187,11 +168,7 @@ export async function stopDictationSession(): Promise<void> {
     const cleanupLevel = getSetting('cleanupLevel')
     if (getSetting('aiFormatting') && cleanupLevel !== 'low') {
       setState('processing')
-      // Auto-detect writing style based on active app
-      const activeApp = (await getActiveAppName()).toLowerCase()
-      const style = getStyleForApp(activeApp)
       cleanedText = await cleanupText(rawText, {
-        style,
         level: cleanupLevel,
         polishInstructions: getSetting('polishInstructions')
       })
@@ -211,7 +188,6 @@ export async function stopDictationSession(): Promise<void> {
     log('Paste done')
 
     playSound('stop').catch(() => {})
-    if (getSetting('muteMusic')) unmuteMusic().catch(() => {})
     setState('idle')
 
     // Save to history in background (non-blocking)
@@ -224,7 +200,6 @@ export async function stopDictationSession(): Promise<void> {
     if (soundEffects) {
       playSound('error').catch(() => {})
     }
-    if (getSetting('muteMusic')) unmuteMusic().catch(() => {})
     setState('error', { message: err instanceof Error ? err.message : 'Грешка при обработка' })
     setTimeout(() => setState('idle'), 3000)
     cleanupTempFiles()
@@ -236,7 +211,6 @@ export async function stopDictationSession(): Promise<void> {
  */
 export function cancelDictationSession(): void {
   cancelRecording()
-  if (getSetting('muteMusic')) unmuteMusic().catch(() => {})
   setState('idle')
   cleanupTempFiles()
 }
