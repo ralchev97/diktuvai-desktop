@@ -24,6 +24,7 @@ declare global {
       validateLicense: (key: string) => Promise<any>
       getLicenseStatus: () => Promise<any>
       getAudioDevices: () => Promise<string[]>
+      getPlatform: () => 'darwin' | 'win32' | 'linux'
       getVersion: () => Promise<string>
       checkForUpdates: () => Promise<boolean>
       openExternal: (url: string) => Promise<boolean>

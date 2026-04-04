@@ -18,7 +18,6 @@ let started = false
 const KEY_RIGHT_ALT = UiohookKey.AltRight   // 3640
 const KEY_LEFT_ALT = UiohookKey.Alt          // 56
 const KEY_ESCAPE = UiohookKey.Escape         // 1
-const KEY_FN = 0x00FF                        // Fn key (macOS specific, code 255)
 const KEY_RIGHT_CTRL = UiohookKey.CtrlRight  // 3613
 
 const KEY_MAPPING: Record<string, number> = {
@@ -29,7 +28,6 @@ const KEY_MAPPING: Record<string, number> = {
   'Option': KEY_RIGHT_ALT,
   'RightCtrl': KEY_RIGHT_CTRL,
   'LeftCtrl': UiohookKey.Ctrl,
-  'Fn': KEY_FN,
 }
 
 /**

@@ -158,7 +158,7 @@ export async function stopDictationSession(): Promise<void> {
       lastPastedText = snippet.content
       const appName = await getActiveAppName()
       saveDictation(rawText, snippet.content, getSetting('language'), appName, result.durationMs)
-      setState('idle')
+      setState('idle', { text: snippet.content })
       cleanupTempFiles()
       return
     }
@@ -188,7 +188,7 @@ export async function stopDictationSession(): Promise<void> {
     log('Paste done')
 
     playSound('stop').catch(() => {})
-    setState('idle')
+    setState('idle', { text: cleanedText })
 
     // Save to history in background (non-blocking)
     const appName = await getActiveAppName()

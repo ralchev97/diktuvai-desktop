@@ -39,6 +39,9 @@ const api = {
   // Stats
   getStats: () => ipcRenderer.invoke('stats:get'),
 
+  // Platform
+  getPlatform: () => process.platform as 'darwin' | 'win32' | 'linux',
+
   // App
   getVersion: () => ipcRenderer.invoke('app:version'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkUpdates'),

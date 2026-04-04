@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { t } from '../../i18n'
 import { api } from '../../hooks/useAPI'
 import WelcomeStep from './WelcomeStep'
@@ -13,24 +13,24 @@ interface OnboardingProps {
   onComplete: () => void
 }
 
-const STEPS = [
-  'welcome',
-  'mic',
-  'accessibility',
-  'language',
-  'hotkey',
-  'test',
-  'login'
-] as const
-
-type Step = typeof STEPS[number]
+type Step = 'welcome' | 'mic' | 'accessibility' | 'language' | 'hotkey' | 'test' | 'login'
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
+  const isMac = api?.getPlatform() === 'darwin'
+
+  const steps = useMemo<Step[]>(() => {
+    const all: Step[] = ['welcome', 'mic', 'accessibility', 'language', 'hotkey', 'test', 'login']
+    // Windows doesn't need Accessibility permission
+    if (!isMac) return all.filter(s => s !== 'accessibility')
+    return all
+  }, [isMac])
+
   const [currentStep, setCurrentStep] = useState<number>(0)
-  const step = STEPS[currentStep]
+  const [accessibilityGranted, setAccessibilityGranted] = useState(!isMac) // auto-granted on Windows
+  const step = steps[currentStep]
 
   const handleNext = () => {
-    if (currentStep < STEPS.length - 1) {
+    if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
     } else {
       handleFinish()
@@ -52,7 +52,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     switch (step) {
       case 'welcome': return <WelcomeStep />
       case 'mic': return <MicPermissionStep />
-      case 'accessibility': return <AccessibilityStep />
+      case 'accessibility': return <AccessibilityStep onStatusChange={setAccessibilityGranted} />
       case 'language': return <LanguageStep />
       case 'hotkey': return <HotkeyStep />
       case 'test': return <TestStep />
@@ -60,12 +60,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }
   }
 
+  const isNextDisabled = step === 'accessibility' && !accessibilityGranted
+
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-gray-900">
       {/* Progress bar */}
       <div className="pt-12 px-8">
         <div className="flex gap-1.5">
-          {STEPS.map((_, i) => (
+          {steps.map((_, i) => (
             <div
               key={i}
               className={`h-1 flex-1 rounded-full transition-colors ${
@@ -105,7 +107,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           )}
           <button
             onClick={step === 'login' ? handleFinish : handleNext}
-            className="px-6 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition-colors"
+            disabled={isNextDisabled}
+            className={`px-6 py-2 text-white text-sm font-medium rounded-lg transition-colors ${
+              isNextDisabled
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-brand-blue hover:bg-brand-blue-dark'
+            }`}
           >
             {step === 'login' ? t('onboarding.finish') : t('onboarding.next')}
           </button>

@@ -165,7 +165,7 @@ function keyEventToSettingValue(e: React.KeyboardEvent, settingKey: string): str
   if (isModifierOnly) {
     if (e.key === 'Alt') return e.location === 2 ? 'RightOption' : 'LeftOption'
     if (e.key === 'Control') return e.location === 2 ? 'RightCtrl' : 'LeftCtrl'
-    if (e.key === 'Fn') return 'Fn'
+    // Fn key not supported on macOS (no key events generated)
     // Ignore non-modifier keys for these settings
     return null
   }
