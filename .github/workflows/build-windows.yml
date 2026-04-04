@@ -3,6 +3,9 @@ name: Build Windows
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -19,6 +22,13 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Get version from package.json
+        id: version
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
       - name: Install dependencies
         run: npm ci
         env:
@@ -30,19 +40,15 @@ jobs:
       - name: Package Windows
         run: npm run package:win
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: DiktuvAI-Windows
-          path: release/DiktuvAI Setup 1.0.0.exe
+          path: release/*.exe
 
-      - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.0-win
-          name: DiktuvAI v1.0.0 Windows
-          files: release/DiktuvAI Setup 1.0.0.exe
+      - name: Upload to releases repo
+        run: gh release upload "v${{ steps.version.outputs.VERSION }}" release/*.exe --repo ralchev97/diktuvai-releases --clobber
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
