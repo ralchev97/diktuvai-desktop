@@ -1,18 +1,29 @@
 import React, { useState } from 'react'
 import { t } from '../../i18n'
 import { useSettings } from '../../hooks/useAPI'
+import HomeTab from './HomeTab'
 import GeneralTab from './GeneralTab'
 import PersonalizationTab from './PersonalizationTab'
 import AccountTab from './AccountTab'
 import PrivacyTab from './PrivacyTab'
 
-type Tab = 'general' | 'personalization' | 'account' | 'privacy'
+type Tab = 'home' | 'general' | 'personalization' | 'account' | 'privacy'
 
 export default function SettingsWindow() {
-  const [activeTab, setActiveTab] = useState<Tab>('general')
+  const [activeTab, setActiveTab] = useState<Tab>('home')
   const { settings, loading, updateSetting } = useSettings()
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'home',
+      label: t('nav.home' as any),
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+          <polyline points="9 22 9 12 15 12 15 22" />
+        </svg>
+      )
+    },
     {
       id: 'general',
       label: t('nav.general'),
@@ -93,6 +104,7 @@ export default function SettingsWindow() {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 no-drag">
+          {activeTab === 'home' && <HomeTab />}
           {activeTab === 'general' && <GeneralTab settings={settings} onUpdate={updateSetting} />}
           {activeTab === 'personalization' && <PersonalizationTab settings={settings} onUpdate={updateSetting} />}
           {activeTab === 'account' && <AccountTab settings={settings} onUpdate={updateSetting} />}

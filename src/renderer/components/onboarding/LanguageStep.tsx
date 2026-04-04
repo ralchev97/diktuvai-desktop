@@ -17,9 +17,9 @@ export default function LanguageStep() {
   }
 
   const options = [
-    { value: 'bg', label: t('onboarding.bulgarian'), flag: '🇧🇬', desc: 'Български език' },
-    { value: 'en', label: t('onboarding.english'), flag: '🇬🇧', desc: 'English language' },
-    { value: 'auto', label: t('onboarding.autoDetect'), flag: '🌐', desc: 'AI ще разпознае езика автоматично' },
+    { value: 'bg', label: t('onboarding.bulgarian'), flag: '🇧🇬', desc: 'Изберете ако говорите само на български — най-точно разпознаване' },
+    { value: 'en', label: t('onboarding.english'), flag: '🇬🇧', desc: 'Choose if you only speak English — best accuracy' },
+    { value: 'auto', label: t('onboarding.autoDetect'), flag: '🌐', desc: 'Препоръчително ако говорите на повече от един език' },
   ]
 
   return (

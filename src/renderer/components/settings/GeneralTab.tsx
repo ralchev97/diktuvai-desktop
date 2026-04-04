@@ -42,16 +42,23 @@ export default function GeneralTab({ settings, onUpdate }: GeneralTabProps) {
             <button
               key={lang}
               onClick={() => onUpdate('language', lang)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex flex-col items-center px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 settings.language === lang
                   ? 'bg-brand-blue text-white'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              {lang === 'bg' ? '🇧🇬 Български' : lang === 'en' ? '🇬🇧 English' : '🌐 Auto'}
+              <span>{lang === 'bg' ? '🇧🇬 Български' : lang === 'en' ? '🇬🇧 English' : '🌐 Auto'}</span>
             </button>
           ))}
         </div>
+        <p className="text-xs text-gray-400 mt-2">
+          {settings.language === 'bg'
+            ? t('settings.languageBgDesc' as any)
+            : settings.language === 'en'
+            ? t('settings.languageEnDesc' as any)
+            : t('settings.languageAutoDesc' as any)}
+        </p>
       </section>
 
       {/* AI Formatting */}
@@ -111,6 +118,13 @@ export default function GeneralTab({ settings, onUpdate }: GeneralTabProps) {
           <Toggle checked={settings.soundEffects} onChange={(v) => onUpdate('soundEffects', v)} />
         </div>
         <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm text-gray-700 dark:text-gray-300">{t('settings.muteMusic' as any)}</span>
+            <p className="text-xs text-gray-400">{t('settings.muteMusicDesc' as any)}</p>
+          </div>
+          <Toggle checked={settings.muteMusic} onChange={(v) => onUpdate('muteMusic', v)} />
+        </div>
+        <div className="flex items-center justify-between">
           <span className="text-sm text-gray-700 dark:text-gray-300">{t('settings.openAtLogin')}</span>
           <Toggle checked={settings.openAtLogin} onChange={(v) => onUpdate('openAtLogin', v)} />
         </div>
@@ -138,6 +152,41 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
+// Whether this shortcut key is a single modifier (hold-to-talk style) or a combo
+const MODIFIER_ONLY_KEYS = new Set(['hotkey', 'commandHotkey'])
+
+function keyEventToSettingValue(e: React.KeyboardEvent, settingKey: string): string | null {
+  e.preventDefault()
+  e.stopPropagation()
+
+  const isModifierOnly = MODIFIER_ONLY_KEYS.has(settingKey)
+
+  // For modifier-only shortcuts (push-to-talk, command mode)
+  if (isModifierOnly) {
+    if (e.key === 'Alt') return e.location === 2 ? 'RightOption' : 'LeftOption'
+    if (e.key === 'Control') return e.location === 2 ? 'RightCtrl' : 'LeftCtrl'
+    if (e.key === 'Fn') return 'Fn'
+    // Ignore non-modifier keys for these settings
+    return null
+  }
+
+  // For combo shortcuts (undo, dismiss, polishPaste)
+  if (e.key === 'Escape') return 'Escape'
+
+  const parts: string[] = []
+  if (e.metaKey) parts.push('CommandOrControl')
+  if (e.ctrlKey && !e.metaKey) parts.push('Control')
+  if (e.shiftKey) parts.push('Shift')
+  if (e.altKey) parts.push('Alt')
+
+  const key = e.key
+  // Skip if only a modifier was pressed (for combo shortcuts, we need a base key)
+  if (['Meta', 'Control', 'Shift', 'Alt', 'Fn'].includes(key)) return null
+
+  parts.push(key.length === 1 ? key.toUpperCase() : key)
+  return parts.join('+')
+}
+
 function ShortcutRow({ label, value, settingKey, onUpdate }: { label: string; value: string; settingKey: string; onUpdate: (key: string, value: unknown) => void }) {
   const [editing, setEditing] = useState(false)
 
@@ -145,19 +194,49 @@ function ShortcutRow({ label, value, settingKey, onUpdate }: { label: string; va
     return v
       .replace('CommandOrControl', '⌘')
       .replace('Control', '⌃')
+      .replace('Right', '')
+      .replace('Left', '')
       .replace('Option', '⌥')
       .replace('Alt', '⌥')
       .replace('Shift', '⇧')
       .replace('Escape', 'ESC')
-      .replace('+', ' + ')
+      .replace(/\+/g, ' + ')
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const newValue = keyEventToSettingValue(e, settingKey)
+    if (newValue) {
+      onUpdate(settingKey, newValue)
+      setEditing(false)
+    }
+  }
+
+  const handleBlur = () => {
+    setEditing(false)
   }
 
   return (
-    <div className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+    <div
+      className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+      onClick={() => !editing && setEditing(true)}
+    >
       <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-      <kbd className="px-2.5 py-1 bg-white dark:bg-gray-700 rounded-md text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 shadow-sm">
-        {displayValue(value)}
-      </kbd>
+      {editing ? (
+        <kbd
+          tabIndex={0}
+          autoFocus
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          ref={(el) => el?.focus()}
+          className="px-2.5 py-1 bg-brand-blue/20 dark:bg-brand-blue/30 rounded-md text-xs font-mono text-brand-blue border border-brand-blue shadow-sm animate-pulse outline-none min-w-[80px] text-center"
+        >
+          {MODIFIER_ONLY_KEYS.has(settingKey) ? 'Натисни клавиш...' : 'Натисни комбинация...'}
+        </kbd>
+      ) : (
+        <kbd className="px-2.5 py-1 bg-white dark:bg-gray-700 rounded-md text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 shadow-sm">
+          {displayValue(value)}
+        </kbd>
+      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ export const bg = {
     version: 'Версия'
   },
   nav: {
+    home: 'Начало',
     general: 'Общи',
     personalization: 'Персонализация',
     account: 'Акаунт',
@@ -53,6 +54,9 @@ export const bg = {
     polishPaste: 'Изчисти и постави',
     commandMode: 'Режим на команди',
     language: 'Език на диктуване',
+    languageBgDesc: 'Най-точно разпознаване, ако говорите само на български',
+    languageEnDesc: 'Най-точно разпознаване, ако говорите само на английски',
+    languageAutoDesc: 'Препоръчително ако говорите на повече от един език',
     aiFormatting: 'AI форматиране',
     aiFormattingDesc: 'Автоматично изчистване и форматиране на текста',
     cleanupLevel: 'Ниво на изчистване',
@@ -61,6 +65,8 @@ export const bg = {
     cleanupHigh: 'Високо',
     microphone: 'Микрофон',
     soundEffects: 'Звукови ефекти',
+    muteMusic: 'Спри музиката при диктуване',
+    muteMusicDesc: 'Автоматично паузира Spotify/Apple Music докато диктувате',
     openAtLogin: 'Стартирай при вход',
     hideFromDock: 'Скрий от Dock'
   },
@@ -128,6 +134,19 @@ export const bg = {
     words: 'думи',
     copied: 'Копирано!',
     delete: 'Изтрий'
+  },
+  home: {
+    welcome: 'Добре дошли',
+    totalWords: 'Общо думи',
+    dictations: 'Диктовки',
+    avgSpeed: 'Средна скорост',
+    wpm: 'думи/мин',
+    streak: 'Поредни дни',
+    timeSaved: 'Спестено време',
+    minutes: 'минути',
+    fasterThanTyping: 'по-бързо от писане',
+    wordsToday: 'Думи днес',
+    wordsThisWeek: 'Думи тази седмица',
   },
   overlay: {
     listening: 'Слушам...',

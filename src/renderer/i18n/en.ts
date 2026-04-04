@@ -8,6 +8,7 @@ export const en: Translations = {
     version: 'Version'
   },
   nav: {
+    home: 'Home',
     general: 'General',
     personalization: 'Personalization',
     account: 'Account',
@@ -55,6 +56,9 @@ export const en: Translations = {
     polishPaste: 'Polish & Paste',
     commandMode: 'Command Mode',
     language: 'Dictation Language',
+    languageBgDesc: 'Best accuracy if you only speak Bulgarian',
+    languageEnDesc: 'Best accuracy if you only speak English',
+    languageAutoDesc: 'Recommended if you speak more than one language',
     aiFormatting: 'AI Formatting',
     aiFormattingDesc: 'Automatically clean up and format text',
     cleanupLevel: 'Cleanup Level',
@@ -63,6 +67,8 @@ export const en: Translations = {
     cleanupHigh: 'High',
     microphone: 'Microphone',
     soundEffects: 'Sound Effects',
+    muteMusic: 'Mute music while dictating',
+    muteMusicDesc: 'Automatically pauses Spotify/Apple Music while you dictate',
     openAtLogin: 'Open at login',
     hideFromDock: 'Hide from Dock'
   },
@@ -130,6 +136,19 @@ export const en: Translations = {
     words: 'words',
     copied: 'Copied!',
     delete: 'Delete'
+  },
+  home: {
+    welcome: 'Welcome',
+    totalWords: 'Total words',
+    dictations: 'Dictations',
+    avgSpeed: 'Average speed',
+    wpm: 'wpm',
+    streak: 'Day streak',
+    timeSaved: 'Time saved',
+    minutes: 'minutes',
+    fasterThanTyping: 'faster than typing',
+    wordsToday: 'Words today',
+    wordsThisWeek: 'Words this week',
   },
   overlay: {
     listening: 'Listening...',

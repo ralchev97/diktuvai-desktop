@@ -111,9 +111,9 @@ function createOverlayWindow(): BrowserWindow {
 
   const { height: screenHeight } = screen.getPrimaryDisplay().size
   overlayWindow = new BrowserWindow({
-    width: 100,
-    height: 28,
-    x: Math.round(screenWidth / 2 - 50),
+    width: 120,
+    height: 36,
+    x: Math.round(screenWidth / 2 - 60),
     y: screenHeight - 120,
     show: false,
     frame: false,
@@ -134,6 +134,8 @@ function createOverlayWindow(): BrowserWindow {
 
   overlayWindow.setIgnoreMouseEvents(true, { forward: true })
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  // Use 'screen-saver' level to ensure overlay is above all other windows
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver')
 
   if (process.env.ELECTRON_RENDERER_URL) {
     overlayWindow.loadURL(process.env.ELECTRON_RENDERER_URL + '#/overlay')
@@ -237,9 +239,11 @@ app.whenReady().then(async () => {
   // Auto-updater
   initAutoUpdater(settings)
 
-  // Only show settings on first launch (onboarding)
-  if (!getSetting('onboardingComplete')) {
+  // Show settings window on first launch (onboarding) or always in dev mode
+  if (!getSetting('onboardingComplete') || !app.isPackaged) {
     settingsWindow?.show()
+    settingsWindow?.focus()
+    if (isMac) app.dock?.show()
   }
 
   // Check for updates after a delay (only in production)

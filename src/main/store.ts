@@ -12,6 +12,7 @@ export interface AppSettings {
   cleanupLevel: 'low' | 'medium' | 'high'
   microphone: string
   soundEffects: boolean
+  muteMusic: boolean
   openAtLogin: boolean
   hideFromDock: boolean
 
@@ -56,7 +57,8 @@ const defaults: AppSettings = {
   cleanupLevel: 'medium',
   microphone: 'default',
   soundEffects: true,
-  openAtLogin: false,
+  muteMusic: true,
+  openAtLogin: true,
   hideFromDock: false,
 
   autoLearnDictionary: true,

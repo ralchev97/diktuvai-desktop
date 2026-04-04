@@ -21,25 +21,28 @@ const KEY_ESCAPE = UiohookKey.Escape         // 1
 const KEY_FN = 0x00FF                        // Fn key (macOS specific, code 255)
 const KEY_RIGHT_CTRL = UiohookKey.CtrlRight  // 3613
 
+const KEY_MAPPING: Record<string, number> = {
+  'RightAlt': KEY_RIGHT_ALT,
+  'LeftAlt': KEY_LEFT_ALT,
+  'RightOption': KEY_RIGHT_ALT,
+  'LeftOption': KEY_LEFT_ALT,
+  'Option': KEY_RIGHT_ALT,
+  'RightCtrl': KEY_RIGHT_CTRL,
+  'LeftCtrl': UiohookKey.Ctrl,
+  'Fn': KEY_FN,
+}
+
 /**
- * Get the configured hotkey code.
+ * Get the configured hotkey code (reads live from settings).
  */
 function getHotkeyCode(): number {
   const hotkey = getSetting('hotkey')
-  const mapping: Record<string, number> = {
-    'RightAlt': KEY_RIGHT_ALT,
-    'LeftAlt': KEY_LEFT_ALT,
-    'RightOption': KEY_RIGHT_ALT,
-    'LeftOption': KEY_LEFT_ALT,
-    'Option': KEY_RIGHT_ALT,
-    'RightCtrl': KEY_RIGHT_CTRL,
-    'Fn': KEY_FN,
-  }
-  return mapping[hotkey] || KEY_RIGHT_ALT
+  return KEY_MAPPING[hotkey] || KEY_RIGHT_ALT
 }
 
 function getCommandKeyCode(): number {
-  return KEY_RIGHT_CTRL
+  const commandHotkey = getSetting('commandHotkey')
+  return KEY_MAPPING[commandHotkey] || KEY_RIGHT_CTRL
 }
 
 /**
@@ -53,10 +56,11 @@ export function registerShortcuts(h: HoldToTalkHandlers): void {
     return
   }
 
-  const hotkeyCode = getHotkeyCode()
-  const commandKeyCode = getCommandKeyCode()
-
   uIOhook.on('keydown', (e) => {
+    // Read codes dynamically so hotkey changes take effect immediately
+    const hotkeyCode = getHotkeyCode()
+    const commandKeyCode = getCommandKeyCode()
+
     // Dictation: hold to talk
     if (e.keycode === hotkeyCode && !isHolding && !isCommandHolding) {
       isHolding = true
@@ -69,8 +73,9 @@ export function registerShortcuts(h: HoldToTalkHandlers): void {
       handlers?.onCommand()
     }
 
-    // Escape: cancel
-    if (e.keycode === KEY_ESCAPE) {
+    // Escape/dismiss: cancel
+    const dismissCode = KEY_MAPPING[getSetting('dismissHotkey')] || KEY_ESCAPE
+    if (e.keycode === dismissCode) {
       if (isHolding || isCommandHolding) {
         isHolding = false
         isCommandHolding = false
@@ -80,6 +85,9 @@ export function registerShortcuts(h: HoldToTalkHandlers): void {
   })
 
   uIOhook.on('keyup', (e) => {
+    const hotkeyCode = getHotkeyCode()
+    const commandKeyCode = getCommandKeyCode()
+
     // Release dictation key → stop & process
     if (e.keycode === hotkeyCode && isHolding) {
       isHolding = false
@@ -96,8 +104,8 @@ export function registerShortcuts(h: HoldToTalkHandlers): void {
   uIOhook.start()
   started = true
 
-  console.log(`Hold-to-talk registered: keycode ${hotkeyCode} (${getSetting('hotkey')})`)
-  console.log(`Command mode: keycode ${commandKeyCode}`)
+  console.log(`Hold-to-talk registered: keycode ${getHotkeyCode()} (${getSetting('hotkey')})`)
+  console.log(`Command mode: keycode ${getCommandKeyCode()} (${getSetting('commandHotkey')})`)
   console.log('Press and HOLD the key to dictate, release to process.')
 }
 

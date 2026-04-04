@@ -350,6 +350,73 @@ export async function getActiveAppName(): Promise<string> {
 /**
  * Play a system sound.
  */
+let musicWasPaused = false
+
+export async function muteMusic(): Promise<void> {
+  if (!isMac) return
+  try {
+    // Check if Spotify or Apple Music is playing, then pause
+    const script = `
+      set didPause to false
+      try
+        tell application "System Events"
+          if exists (process "Spotify") then
+            tell application "Spotify"
+              if player state is playing then
+                pause
+                set didPause to true
+              end if
+            end tell
+          end if
+        end tell
+      end try
+      try
+        tell application "System Events"
+          if exists (process "Music") then
+            tell application "Music"
+              if player state is playing then
+                pause
+                set didPause to true
+              end if
+            end tell
+          end if
+        end tell
+      end try
+      return didPause
+    `
+    const { stdout } = await execAsync(`osascript -e '${script.replace(/'/g, "'\\''")}'`)
+    musicWasPaused = stdout.trim() === 'true'
+  } catch { /* ignore */ }
+}
+
+export async function unmuteMusic(): Promise<void> {
+  if (!isMac || !musicWasPaused) return
+  musicWasPaused = false
+  try {
+    const script = `
+      try
+        tell application "System Events"
+          if exists (process "Spotify") then
+            tell application "Spotify"
+              play
+            end tell
+          end if
+        end tell
+      end try
+      try
+        tell application "System Events"
+          if exists (process "Music") then
+            tell application "Music"
+              play
+            end tell
+          end if
+        end tell
+      end try
+    `
+    await execAsync(`osascript -e '${script.replace(/'/g, "'\\''")}'`)
+  } catch { /* ignore */ }
+}
+
 export async function playSound(sound: 'start' | 'stop' | 'error'): Promise<void> {
   if (isMac) {
     const soundMap = { start: 'Tink', stop: 'Tink', error: 'Basso' }

@@ -36,6 +36,9 @@ const api = {
   // Audio devices
   getAudioDevices: () => ipcRenderer.invoke('audio:devices'),
 
+  // Stats
+  getStats: () => ipcRenderer.invoke('stats:get'),
+
   // App
   getVersion: () => ipcRenderer.invoke('app:version'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkUpdates'),

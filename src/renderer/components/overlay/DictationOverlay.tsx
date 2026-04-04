@@ -91,6 +91,10 @@ export default function DictationOverlay() {
           animation: state === 'idle' ? 'popOut 0.1s ease-in forwards' : 'popIn 0.1s ease-out',
           display: 'inline-flex',
           alignItems: 'center',
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          borderRadius: '12px',
+          padding: '6px 14px',
+          backdropFilter: 'blur(10px)',
         }}
       >
         {isRecording && <WaveformDots level={audioLevel} />}
