@@ -135,10 +135,10 @@ async function doPasteMac(): Promise<boolean> {
   try {
     const script = bundleId
       ? `tell application id "${bundleId}" to activate
-         delay 0.15
+         delay 0.05
          tell application "System Events" to key code 9 using command down`
       : `tell application "${appName}" to activate
-         delay 0.15
+         delay 0.05
          tell application "System Events" to key code 9 using command down`
 
     await execAsync(`osascript -e '${script}'`)
@@ -202,14 +202,11 @@ export async function pasteText(text: string): Promise<void> {
     log('Clipboard set via Electron')
   }
 
-  // Verify clipboard content
-  await sleep(50)
+  // Quick clipboard verification (no extra sleep needed — pbcopy is synchronous)
   const clipCheck = clipboard.readText()
   if (clipCheck !== text) {
     log(`WARNING: Clipboard mismatch! Expected ${text.length} chars, got ${clipCheck.length} chars`)
-    // Try again
     clipboard.writeText(text)
-    await sleep(100)
   }
 
   if (isMac) {
@@ -246,14 +243,12 @@ async function pasteOnMac(text: string): Promise<void> {
       } catch {
         clipboard.writeText(text)
       }
-      await sleep(50)
     }
 
     // Paste (includes app activation)
     const pasted = await doPasteMac()
     if (pasted) {
       log(`Paste command sent successfully on attempt ${attempt}`)
-      await sleep(200)
       return
     }
 

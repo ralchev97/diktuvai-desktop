@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useDictationState, useAudioLevel } from '../../hooks/useAPI'
 
-function WaveformDots({ level }: { level: number }) {
-  const smoothBars = useRef<number[]>(Array(8).fill(0))
+function Waveform({ level }: { level: number }) {
+  const smoothBars = useRef<number[]>(Array(12).fill(0))
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef = useRef<number>(0)
 
@@ -15,32 +15,34 @@ function WaveformDots({ level }: { level: number }) {
 
       c.clearRect(0, 0, canvas.width, canvas.height)
 
-      const barCount = 8
-      const dotSize = 2.5
+      const barCount = 12
+      const barWidth = 2
       const gap = 2.5
-      const totalWidth = barCount * (dotSize + gap) - gap
+      const totalWidth = barCount * (barWidth + gap) - gap
       const startX = (canvas.width - totalWidth) / 2
       const centerY = canvas.height / 2
 
       for (let i = 0; i < barCount; i++) {
         const center = barCount / 2
         const dist = Math.abs(i - center) / center
-        const t = Date.now() / 350
-        const wave = Math.sin(t + i * 0.7) * 0.12
-        const envelope = 1 - dist * 0.35
+        const t = Date.now() / 300
+        const wave = Math.sin(t + i * 0.8) * 0.15
+        const envelope = 1 - dist * 0.4
         const target = level * envelope + wave * level
 
-        smoothBars.current[i] += (target - smoothBars.current[i]) * 0.08
+        smoothBars.current[i] += (target - smoothBars.current[i]) * 0.1
         const value = Math.max(0, smoothBars.current[i])
 
-        const minH = 2.5
+        const minH = 2
         const maxH = canvas.height * 0.85
         const h = minH + value * (maxH - minH)
-        const alpha = 0.35 + value * 0.55
+        const alpha = 0.4 + value * 0.6
 
-        c.fillStyle = `rgba(255, 255, 255, ${alpha})`
+        // Gradient from cyan to purple
+        const hue = 200 + (i / barCount) * 60
+        c.fillStyle = `hsla(${hue}, 80%, 70%, ${alpha})`
         c.beginPath()
-        c.roundRect(startX + i * (dotSize + gap), centerY - h / 2, dotSize, h, dotSize / 2)
+        c.roundRect(startX + i * (barWidth + gap), centerY - h / 2, barWidth, h, 1)
         c.fill()
       }
 
@@ -50,7 +52,7 @@ function WaveformDots({ level }: { level: number }) {
     return () => cancelAnimationFrame(rafRef.current)
   }, [level])
 
-  return <canvas ref={canvasRef} width={44} height={18} style={{ display: 'block' }} />
+  return <canvas ref={canvasRef} width={70} height={24} style={{ display: 'block' }} />
 }
 
 export default function DictationOverlay() {
@@ -75,62 +77,54 @@ export default function DictationOverlay() {
   const isError = state === 'error'
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center">
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
       <style>{`
-        @keyframes popIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
-        @keyframes popOut { to { opacity: 0; transform: scale(0.8); } }
-        @keyframes dotWave {
-          0%, 100% { opacity: 0.15; transform: scaleY(1); }
-          50% { opacity: 0.5; transform: scaleY(1.4); }
-        }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+        @keyframes popOut { to { opacity: 0; transform: scale(0.85); } }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
       `}</style>
 
       <div
         style={{
-          animation: state === 'idle' ? 'popOut 0.1s ease-in forwards' : 'popIn 0.1s ease-out',
+          animation: state === 'idle' ? 'popOut 0.1s ease-in forwards' : 'popIn 0.15s ease-out',
           display: 'inline-flex',
           alignItems: 'center',
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          borderRadius: '12px',
-          padding: '6px 14px',
-          backdropFilter: 'blur(10px)',
+          gap: '6px',
+          background: 'rgba(10, 10, 18, 0.9)',
+          borderRadius: '20px',
+          padding: '5px 12px',
         }}
       >
-        {isRecording && <WaveformDots level={audioLevel} />}
+        {/* Mic icon */}
+        {isRecording && (
+          <>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(140, 180, 255, 0.7)" strokeWidth="2" strokeLinecap="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            </svg>
+            <Waveform level={audioLevel} />
+          </>
+        )}
 
         {isProcessing && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {Array.from({ length: 7 }).map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  width: 2,
-                  height: 2,
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(255,255,255,0.35)',
-                  animation: `dotWave 1.3s ease-in-out ${i * 0.1}s infinite`,
-                }}
-              />
-            ))}
-            <svg
-              width="10" height="10" viewBox="0 0 24 24"
-              fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2.5" strokeLinecap="round"
-              style={{ marginLeft: 2, animation: 'spin 1s linear infinite' }}
-            >
-              <path d="M21 12a9 9 0 11-6.219-8.56" />
-            </svg>
-          </div>
+          <svg
+            width="14" height="14" viewBox="0 0 24 24"
+            fill="none" stroke="rgba(140, 180, 255, 0.6)" strokeWidth="2" strokeLinecap="round"
+            style={{ animation: 'spin 1s linear infinite' }}
+          >
+            <path d="M21 12a9 9 0 11-6.219-8.56" />
+          </svg>
         )}
 
         {isDone && (
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         )}
 
         {isError && (
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>

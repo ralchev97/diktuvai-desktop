@@ -58,7 +58,7 @@ export const en: Translations = {
     language: 'Dictation Language',
     languageBgDesc: 'Best accuracy if you only speak Bulgarian',
     languageEnDesc: 'Best accuracy if you only speak English',
-    languageAutoDesc: 'Recommended if you speak more than one language',
+languageAutoDesc: 'Recommended if you speak more than one language',
     aiFormatting: 'AI Formatting',
     aiFormattingDesc: 'Automatically clean up and format text',
     cleanupLevel: 'Cleanup Level',

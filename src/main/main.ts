@@ -111,19 +111,20 @@ function createOverlayWindow(): BrowserWindow {
 
   const { height: screenHeight } = screen.getPrimaryDisplay().size
   overlayWindow = new BrowserWindow({
-    width: 120,
-    height: 36,
-    x: Math.round(screenWidth / 2 - 60),
-    y: screenHeight - 120,
+    width: 140,
+    height: 44,
+    x: Math.round(screenWidth / 2 - 70),
+    y: screenHeight - 100,
     show: false,
     frame: false,
     transparent: true,
+    backgroundColor: '#00000000',
     alwaysOnTop: true,
     skipTaskbar: true,
-    hasShadow: true,
+    hasShadow: false,
     resizable: false,
     focusable: false,
-    roundedCorners: true,
+    roundedCorners: false,
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,

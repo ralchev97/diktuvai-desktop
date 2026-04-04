@@ -69,7 +69,9 @@ export async function transcribeAudio(audioFilePath: string, language?: string):
     response_format: 'text',
     prompt: lang === 'bg'
       ? 'Точна транскрипция на българска реч, дума по дума. Запази всяка дума точно както е казана, включително имена на хора. Не пропускай думи и не ги заменяй.'
-      : undefined,
+      : lang === 'en'
+      ? 'Accurate transcription, word by word.'
+      : 'Accurate transcription, word by word. The speaker may use Bulgarian or English.',
   })
 
   return transcription as unknown as string

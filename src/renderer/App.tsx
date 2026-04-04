@@ -63,6 +63,9 @@ export default function App() {
   }
 
   if (view === 'overlay') {
+    document.documentElement.style.background = 'transparent'
+    document.body.style.background = 'transparent'
+    document.body.className = ''
     return <DictationOverlay />
   }
 
