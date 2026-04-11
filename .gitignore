@@ -5,3 +5,12 @@ release/
 .DS_Store
 .env
 *.db
+
+# Apple Developer certs (NEVER commit)
+build/certs/
+*.p8
+*.cer
+*.key
+*.certSigningRequest
+*.p12
+.env.signing

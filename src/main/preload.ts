@@ -28,9 +28,14 @@ const api = {
   removeSnippet: (id: string) => ipcRenderer.invoke('snippets:remove', id),
   updateSnippet: (id: string, trigger: string, content: string) => ipcRenderer.invoke('snippets:update', id, trigger, content),
 
-  // License
-  loginWithEmail: (email: string) => ipcRenderer.invoke('license:loginWithEmail', email),
+  // License / Auth
+  requestCode: (email: string) => ipcRenderer.invoke('license:requestCode', email),
+  verifyCode: (email: string, code: string) => ipcRenderer.invoke('license:verifyCode', email, code),
   getLicenseStatus: () => ipcRenderer.invoke('license:status'),
+  refreshLicense: () => ipcRenderer.invoke('license:refresh'),
+  getCheckoutUrl: (plan?: 'starter' | 'pro', interval?: 'monthly' | 'annual') =>
+    ipcRenderer.invoke('license:checkoutUrl', plan, interval),
+  getPortalUrl: () => ipcRenderer.invoke('license:portalUrl'),
   logout: () => ipcRenderer.invoke('license:logout'),
 
   // Audio devices

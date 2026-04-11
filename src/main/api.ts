@@ -151,7 +151,28 @@ export async function cleanupText(rawText: string, options?: {
     max_tokens: 4096
   })
 
-  return response.choices[0]?.message?.content?.trim() || rawText
+  const cleaned = response.choices[0]?.message?.content?.trim() || rawText
+  return formatLists(cleaned)
+}
+
+/**
+ * Post-processor: detect comma-separated items and convert to bulleted lists.
+ * Catches cases where the LLM ignores the list formatting instruction.
+ */
+function formatLists(text: string): string {
+  return text.replace(
+    /([.:]\s*)([^.:\n]+(?:,\s*[^,.\n]+){2,}(?:\s+(?:and|и|или|or)\s+[^,.\n]+)?)\s*\.?\s*$/gm,
+    (_match, prefix: string, items: string) => {
+      const parts = items
+        .split(/,\s*|\s+(?:and|и|или|or)\s+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+      if (parts.length >= 3 && parts.every(p => p.length < 80)) {
+        return prefix.trim() + '\n' + parts.map(p => `• ${p}`).join('\n')
+      }
+      return _match
+    }
+  )
 }
 
 /**
@@ -311,6 +332,7 @@ CRITICAL: You MUST use correct Bulgarian grammar and spelling. Pay special atten
   prompt += `
 - Keep the speaker's intent and meaning exactly
 - If the text is in Bulgarian, keep it in Bulgarian. If in English, keep in English.
+- When the speaker mentions 3 or more items (e.g. "bread, milk, potatoes" or "first X, second Y, third Z"), ALWAYS format them as a bulleted list with "•" on separate lines, even if the speaker didn't explicitly say "list"
 - Apply ${style} tone`
 
   if (polishInstructions) {

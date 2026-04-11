@@ -8,7 +8,55 @@ import { platform } from 'os'
 
 const execAsync = promisify(exec)
 
-let previousClipboard: string = ''
+let previousClipboard: { text: string; html: string } = { text: '', html: '' }
+
+/**
+ * Convert cleaned-up text (with • bullets, newlines) to simple HTML
+ * so rich-text apps paste formatted content.
+ */
+function textToHtml(text: string): string {
+  const lines = text.split('\n')
+  const htmlParts: string[] = []
+  let inList = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    // Bullet list item
+    if (/^[•\-\*]\s+/.test(trimmed)) {
+      if (!inList) {
+        htmlParts.push('<ul style="margin:0;padding-left:24px">')
+        inList = true
+      }
+      const content = trimmed.replace(/^[•\-\*]\s+/, '')
+      htmlParts.push(`<li>${escapeHtml(content)}</li>`)
+      continue
+    }
+
+    // Close list if we were in one
+    if (inList) {
+      htmlParts.push('</ul>')
+      inList = false
+    }
+
+    if (trimmed === '') {
+      htmlParts.push('<br>')
+    } else {
+      htmlParts.push(`<p style="margin:0">${escapeHtml(trimmed)}</p>`)
+    }
+  }
+
+  if (inList) htmlParts.push('</ul>')
+  return htmlParts.join('')
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+}
 let lastActiveApp: string = ''
 let lastActiveAppBundleId: string = ''
 
@@ -184,29 +232,22 @@ async function doPasteWindows(): Promise<boolean> {
 export async function pasteText(text: string): Promise<void> {
   log(`pasteText called, text length: ${text.length}, target: "${lastActiveApp}"`)
 
-  // Save current clipboard
-  previousClipboard = clipboard.readText()
+  // Save current clipboard (both formats)
+  previousClipboard = { text: clipboard.readText(), html: clipboard.readHTML() }
 
-  // Write text to system clipboard using pbcopy (macOS) or electron clipboard
-  if (isMac) {
-    // Use pbcopy for rock-solid clipboard write
-    try {
-      execSync('pbcopy', { input: text, encoding: 'utf-8' })
-      log('Clipboard set via pbcopy')
-    } catch {
-      clipboard.writeText(text)
-      log('Clipboard set via Electron (pbcopy failed)')
-    }
-  } else {
-    clipboard.writeText(text)
-    log('Clipboard set via Electron')
-  }
+  // Convert to HTML for rich-text apps
+  const html = textToHtml(text)
 
-  // Quick clipboard verification (no extra sleep needed — pbcopy is synchronous)
+  // Write both plain text and HTML to clipboard
+  // Rich-text apps (Docs, Notes, Word, Slack) will use HTML; plain editors use text
+  clipboard.write({ text, html })
+  log(`Clipboard set with text (${text.length} chars) + html (${html.length} chars)`)
+
+  // Quick clipboard verification
   const clipCheck = clipboard.readText()
   if (clipCheck !== text) {
     log(`WARNING: Clipboard mismatch! Expected ${text.length} chars, got ${clipCheck.length} chars`)
-    clipboard.writeText(text)
+    clipboard.write({ text, html })
   }
 
   if (isMac) {
@@ -216,10 +257,14 @@ export async function pasteText(text: string): Promise<void> {
   }
 
   // Restore previous clipboard after a long delay (5 seconds to be safe)
-  const savedClipboard = previousClipboard
+  const saved = { ...previousClipboard }
   setTimeout(() => {
     try {
-      clipboard.writeText(savedClipboard)
+      if (saved.html) {
+        clipboard.write({ text: saved.text, html: saved.html })
+      } else {
+        clipboard.writeText(saved.text)
+      }
       log('Clipboard restored')
     } catch { /* ignore */ }
   }, 5000)
@@ -238,11 +283,8 @@ async function pasteOnMac(text: string): Promise<void> {
     const currentClip = clipboard.readText()
     if (currentClip !== text) {
       log(`Clipboard was changed, re-setting`)
-      try {
-        execSync('pbcopy', { input: text, encoding: 'utf-8' })
-      } catch {
-        clipboard.writeText(text)
-      }
+      const html = textToHtml(text)
+      clipboard.write({ text, html })
     }
 
     // Paste (includes app activation)

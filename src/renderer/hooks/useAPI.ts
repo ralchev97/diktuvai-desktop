@@ -21,8 +21,13 @@ declare global {
       addSnippet: (trigger: string, content: string) => Promise<any>
       removeSnippet: (id: string) => Promise<boolean>
       updateSnippet: (id: string, trigger: string, content: string) => Promise<boolean>
-      validateLicense: (key: string) => Promise<any>
+      requestCode: (email: string) => Promise<{ success: boolean; error?: string }>
+      verifyCode: (email: string, code: string) => Promise<any>
       getLicenseStatus: () => Promise<any>
+      refreshLicense: () => Promise<any>
+      getCheckoutUrl: (plan?: 'starter' | 'pro', interval?: 'monthly' | 'annual') => Promise<{ url?: string; error?: string }>
+      getPortalUrl: () => Promise<{ url?: string; error?: string }>
+      logout: () => Promise<boolean>
       getAudioDevices: () => Promise<string[]>
       getPlatform: () => 'darwin' | 'win32' | 'linux'
       getVersion: () => Promise<string>
