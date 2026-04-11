@@ -1,38 +1,45 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { t } from '../../i18n'
 import { api } from '../../hooks/useAPI'
 
 export default function TestStep() {
   const [dictState, setDictState] = useState<string>('idle')
   const [result, setResult] = useState<string>('')
-  const [isHolding, setIsHolding] = useState(false)
   const [tested, setTested] = useState(false)
+  const [recording, setRecording] = useState(false)
 
   // Listen to dictation state directly
   useEffect(() => {
     const cleanup = api?.onDictationState((state, data) => {
       setDictState(state)
+      if (state === 'recording') {
+        setRecording(true)
+      }
       if (state === 'idle' && data && typeof data === 'object' && (data as any).text) {
         setResult((data as any).text)
         setTested(true)
+        setRecording(false)
+      }
+      if (state === 'idle' && !(data && typeof data === 'object' && (data as any).text)) {
+        setRecording(false)
       }
     })
     return cleanup
   }, [])
 
-  const handleMouseDown = async () => {
-    setIsHolding(true)
-    setResult('')
-    setTested(false)
-    await api?.startDictation()
+  const handleClick = async () => {
+    if (recording || dictState === 'recording') {
+      setRecording(false)
+      await api?.stopDictation()
+    } else {
+      setResult('')
+      setTested(false)
+      setRecording(true)
+      await api?.startDictation()
+    }
   }
 
-  const handleMouseUp = async () => {
-    setIsHolding(false)
-    await api?.stopDictation()
-  }
-
-  const isRecording = isHolding || dictState === 'recording'
+  const isRecording = recording || dictState === 'recording'
   const isProcessing = dictState === 'transcribing' || dictState === 'processing' || dictState === 'pasting'
 
   return (
@@ -68,9 +75,8 @@ export default function TestStep() {
       ) : (
         <>
           <button
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={() => { if (isHolding) handleMouseUp() }}
+            onClick={handleClick}
+            disabled={isProcessing}
             className={`w-28 h-28 rounded-full flex items-center justify-center transition-all shadow-lg ${
               isRecording
                 ? 'bg-red-500 scale-110 shadow-red-200 dark:shadow-red-900/30'
@@ -99,9 +105,9 @@ export default function TestStep() {
           </button>
 
           <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-            {isRecording ? t('overlay.listening')
+            {isRecording ? t('onboarding.clickToStop')
               : isProcessing ? t('overlay.processing')
-              : t('onboarding.holdToSpeak')}
+              : t('onboarding.clickToRecord')}
           </p>
 
           <p className="mt-2 text-xs text-gray-400">

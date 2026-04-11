@@ -8,7 +8,15 @@ import {
   getUsageStats
 } from './db'
 import { getAudioDevices } from './audio'
-import { loginWithEmail, getLicenseStatus, clearLicense } from './license'
+import {
+  requestCode,
+  verifyCode,
+  refreshLicense,
+  getLicenseStatus,
+  clearLicense,
+  createCheckoutUrl,
+  createPortalUrl,
+} from './license'
 import { checkForUpdates } from './updater'
 import { clipboard } from 'electron'
 import { exec } from 'child_process'
@@ -104,13 +112,29 @@ export function registerIpcHandlers(): void {
     return true
   })
 
-  // License
-  ipcMain.handle('license:loginWithEmail', async (_event, email: string) => {
-    return loginWithEmail(email)
+  // License / Auth
+  ipcMain.handle('license:requestCode', async (_event, email: string) => {
+    return requestCode(email)
+  })
+
+  ipcMain.handle('license:verifyCode', async (_event, email: string, code: string) => {
+    return verifyCode(email, code)
   })
 
   ipcMain.handle('license:status', async () => {
     return getLicenseStatus()
+  })
+
+  ipcMain.handle('license:refresh', async () => {
+    return refreshLicense()
+  })
+
+  ipcMain.handle('license:checkoutUrl', async (_event, plan?: 'starter' | 'pro', interval?: 'monthly' | 'annual') => {
+    return createCheckoutUrl(plan, interval)
+  })
+
+  ipcMain.handle('license:portalUrl', async () => {
+    return createPortalUrl()
   })
 
   ipcMain.handle('license:logout', () => {

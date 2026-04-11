@@ -85,7 +85,7 @@ function createSettingsWindow(): BrowserWindow {
 
   // Open devtools in dev to debug
   if (process.env.ELECTRON_RENDERER_URL) {
-    // settingsWindow.webContents.openDevTools({ mode: 'detach' })
+    settingsWindow.webContents.openDevTools({ mode: 'detach' })
     settingsWindow.webContents.on('did-fail-load', (_e, code, desc) => {
       console.error('Failed to load renderer:', code, desc)
       // Retry after 1 second
