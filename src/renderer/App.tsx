@@ -1,10 +1,52 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react'
 import { useSettings } from './hooks/useAPI'
 import { setLocale } from './i18n'
 import Onboarding from './components/onboarding/Onboarding'
 import SettingsWindow from './components/settings/SettingsWindow'
 import DictationOverlay from './components/overlay/DictationOverlay'
 import HistoryPanel from './components/history/HistoryPanel'
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('React ErrorBoundary caught:', error, info)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-900">
+          <div className="flex flex-col items-center gap-4 text-center px-6">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center">
+              <svg className="w-8 h-8 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Нещо се обърка. Моля, презаредете приложението.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm rounded-lg transition-colors"
+            >
+              Презареди
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
 
 type View = 'onboarding' | 'settings' | 'overlay' | 'history'
 
@@ -24,11 +66,6 @@ export default function App() {
     // Check if this is the overlay window
     if (window.location.hash === '#/overlay') {
       setView('overlay')
-    }
-
-    // Listen for navigation from main process
-    const handleNavigate = (event: Event) => {
-      // Custom event from IPC
     }
 
     // Listen for hash changes
@@ -69,13 +106,11 @@ export default function App() {
     return <DictationOverlay />
   }
 
-  if (view === 'onboarding') {
-    return <Onboarding onComplete={() => setView('settings')} />
-  }
+  const content = view === 'onboarding'
+    ? <Onboarding onComplete={() => setView('settings')} />
+    : view === 'history'
+    ? <HistoryPanel />
+    : <SettingsWindow />
 
-  if (view === 'history') {
-    return <HistoryPanel />
-  }
-
-  return <SettingsWindow />
+  return <ErrorBoundary>{content}</ErrorBoundary>
 }

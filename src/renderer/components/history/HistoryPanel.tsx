@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { t } from '../../i18n'
 import { api } from '../../hooks/useAPI'
 
@@ -30,13 +30,24 @@ export default function HistoryPanel() {
     setLoading(false)
   }
 
-  const handleSearch = useCallback(async (query: string) => {
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
-    if (query.trim()) {
-      const results = await api?.searchHistory(query)
-      setItems(results || [])
-    } else {
-      loadHistory()
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(async () => {
+      if (query.trim()) {
+        const results = await api?.searchHistory(query)
+        setItems(results || [])
+      } else {
+        loadHistory()
+      }
+    }, 300)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     }
   }, [])
 

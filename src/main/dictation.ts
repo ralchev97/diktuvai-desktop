@@ -1,6 +1,6 @@
 import { BrowserWindow, app } from 'electron'
-import { startRecording, stopRecording, cancelRecording, isRecording, cleanupTempFiles } from './audio'
-import { transcribeAudio, cleanupText, processCommand } from './api'
+import { startRecording, stopRecording, cancelRecording, isRecording, cleanupTempFiles, getAudioLevel } from './audio'
+import { transcribeAudio, cleanupText, processCommand, resetCostEstimate, getLastCostEstimate } from './api'
 import { pasteText, undoLastPaste, getSelectedText, getActiveAppName, playSound, rememberActiveApp, muteMusic, unmuteMusic } from './paste'
 import { saveDictation, getSnippets } from './db'
 import { getSetting } from './store'
@@ -11,6 +11,43 @@ const logFile = path.join(app.getPath('userData'), 'dictation.log')
 function log(msg: string): void {
   const line = `[${new Date().toISOString()}] ${msg}\n`
   fs.appendFileSync(logFile, line)
+}
+
+const FAILED_DIR_NAME = 'failed-dictations'
+const MAX_FAILED_FILES = 10
+
+/**
+ * Save a WAV file to failed-dictations/ for later retry.
+ * Keeps at most MAX_FAILED_FILES files, deleting the oldest if over limit.
+ */
+function saveFailedDictation(audioFilePath: string): void {
+  try {
+    const failedDir = path.join(app.getPath('userData'), FAILED_DIR_NAME)
+    if (!fs.existsSync(failedDir)) {
+      fs.mkdirSync(failedDir, { recursive: true })
+    }
+
+    const destName = `failed_${Date.now()}.wav`
+    const destPath = path.join(failedDir, destName)
+    fs.copyFileSync(audioFilePath, destPath)
+    log(`Saved failed dictation to ${destPath}`)
+
+    // Enforce max file limit — delete oldest files
+    const files = fs.readdirSync(failedDir)
+      .filter(f => f.endsWith('.wav'))
+      .map(f => ({ name: f, time: fs.statSync(path.join(failedDir, f)).mtimeMs }))
+      .sort((a, b) => a.time - b.time) // oldest first
+
+    while (files.length > MAX_FAILED_FILES) {
+      const oldest = files.shift()!
+      try {
+        fs.unlinkSync(path.join(failedDir, oldest.name))
+        log(`Deleted oldest failed dictation: ${oldest.name}`)
+      } catch { /* ignore */ }
+    }
+  } catch (saveErr) {
+    log(`Failed to save failed dictation: ${saveErr}`)
+  }
 }
 
 export type DictationState = 'idle' | 'recording' | 'transcribing' | 'processing' | 'pasting' | 'error'
@@ -28,13 +65,13 @@ function startAudioLevelUpdates(): void {
   audioLevelInterval = setInterval(() => {
     try {
       if (overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.webContents.isDestroyed()) {
-        // Send a simulated audio level (0-1) — organic variation
-        const t = Date.now() / 200
-        const level = 0.3 + Math.sin(t) * 0.2 + Math.sin(t * 2.3) * 0.15 + Math.random() * 0.25
+        // Read real audio level from the recording process (Swift recorder outputs LEVEL: to stderr)
+        // Falls back to 0 if the recorder doesn't support levels (e.g. ffmpeg/PowerShell)
+        const level = getAudioLevel()
         overlayWindow.webContents.send('audio:level', Math.min(1, Math.max(0, level)))
       }
     } catch { /* ignore */ }
-  }, 50) // 20fps updates
+  }, 100) // 10fps — matches the 100ms interval of the Swift recorder's level output
 }
 
 function stopAudioLevelUpdates(): void {
@@ -128,9 +165,11 @@ export async function startDictationSession(): Promise<void> {
 export async function stopDictationSession(): Promise<void> {
   if (currentState !== 'recording') return
 
+  let lastRecordedFilePath: string | null = null
   try {
     setState('transcribing')
     stopAudioLevelUpdates()
+    resetCostEstimate()
     log('Stopping recording...')
 
     const result = await stopRecording()
@@ -142,6 +181,9 @@ export async function stopDictationSession(): Promise<void> {
       cleanupTempFiles()
       return
     }
+
+    // Track file path for potential save on failure
+    lastRecordedFilePath = result.filePath
 
     // Transcribe
     log(`Transcribing ${result.filePath}...`)
@@ -163,7 +205,7 @@ export async function stopDictationSession(): Promise<void> {
       await pasteText(snippet.content)
       lastPastedText = snippet.content
       const appName = await getActiveAppName()
-      saveDictation(rawText, snippet.content, getSetting('language'), appName, result.durationMs)
+      saveDictation(rawText, snippet.content, getSetting('language'), appName, result.durationMs, getLastCostEstimate())
       setState('idle', { text: snippet.content })
       cleanupTempFiles()
       return
@@ -200,11 +242,17 @@ export async function stopDictationSession(): Promise<void> {
     // Save to history (skip if privacy mode is on)
     if (!getSetting('privacyMode')) {
       const appName = await getActiveAppName()
-      saveDictation(rawText, cleanedText, getSetting('language'), appName, result.durationMs)
+      saveDictation(rawText, cleanedText, getSetting('language'), appName, result.durationMs, getLastCostEstimate())
     }
     cleanupTempFiles()
   } catch (err) {
     log(`DICTATION ERROR: ${err instanceof Error ? err.stack : err}`)
+
+    // Save raw audio to failed-dictations/ for later retry
+    if (lastRecordedFilePath && fs.existsSync(lastRecordedFilePath)) {
+      saveFailedDictation(lastRecordedFilePath)
+    }
+
     const soundEffects = getSetting('soundEffects')
     if (soundEffects) {
       playSound('error').catch(() => {})
@@ -270,6 +318,7 @@ export async function stopCommandMode(): Promise<void> {
 
   try {
     setState('transcribing')
+    resetCostEstimate()
 
     const result = await stopRecording()
     if (!result || result.durationMs < 300) {
@@ -298,7 +347,7 @@ export async function stopCommandMode(): Promise<void> {
       lastPastedText = resultText
 
       const appName = await getActiveAppName()
-      saveDictation(command, resultText, getSetting('language'), appName, result.durationMs)
+      saveDictation(command, resultText, getSetting('language'), appName, result.durationMs, getLastCostEstimate())
     }
 
     const soundEffects = getSetting('soundEffects')

@@ -7,6 +7,11 @@ import http from 'http'
 import FormData from 'form-data'
 import path from 'path'
 
+// Cost tracking: stores the cost estimate from the last transcription + cleanup cycle
+let lastCostEstimate = 0
+export function getLastCostEstimate(): number { return lastCostEstimate }
+export function resetCostEstimate(): void { lastCostEstimate = 0 }
+
 let openaiClient: OpenAI | null = null
 
 function getServerConfig() {
@@ -76,24 +81,83 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ])
 }
 
+/**
+ * Retry wrapper for transient API errors (HTTP 429 rate limit and 5xx server errors).
+ * Exponential backoff: 1s, then 2s. Does NOT retry on 4xx errors (except 429).
+ */
+async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  const delays = [1000, 2000]
+  let lastError: unknown
+
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await fn()
+    } catch (err: unknown) {
+      lastError = err
+      const status = (err as { status?: number })?.status
+      const isRetryable = status === 429 || (status !== undefined && status >= 500)
+      if (!isRetryable || attempt >= delays.length) {
+        throw err
+      }
+      console.log(`[${label}] Retryable error (${status}), retrying in ${delays[attempt]}ms...`)
+      await new Promise(resolve => setTimeout(resolve, delays[attempt]))
+    }
+  }
+  throw lastError
+}
+
 async function transcribeDirect(audioFilePath: string, language?: string): Promise<string> {
-  const client = getCleanupClient()
   const langSetting = language || getSetting('language')
   const lang = langSetting === 'auto' ? undefined : langSetting
+  const prompt = lang === 'bg'
+    ? 'Точна транскрипция на българска реч, дума по дума. Запази всяка дума точно както е казана, включително имена на хора. Не пропускай думи и не ги заменяй.'
+    : lang === 'en'
+    ? 'Accurate transcription, word by word.'
+    : 'Accurate transcription, word by word. The speaker may use Bulgarian or English.'
 
-  const transcription = await withTimeout(client.audio.transcriptions.create({
-    file: fs.createReadStream(audioFilePath),
-    model: 'gpt-4o-transcribe',
-    language: lang === 'bg' ? 'bg' : lang === 'en' ? 'en' : undefined,
-    response_format: 'text',
-    prompt: lang === 'bg'
-      ? 'Точна транскрипция на българска реч, дума по дума. Запази всяка дума точно както е казана, включително имена на хора. Не пропускай думи и не ги заменяй.'
-      : lang === 'en'
-      ? 'Accurate transcription, word by word.'
-      : 'Accurate transcription, word by word. The speaker may use Bulgarian or English.',
-  }), 30000, 'Transcription')
+  // Primary: OpenAI gpt-4o-transcribe (with retry for 429/5xx)
+  try {
+    const client = getCleanupClient()
+    const transcription = await withRetry(() => withTimeout(client.audio.transcriptions.create({
+      file: fs.createReadStream(audioFilePath),
+      model: 'gpt-4o-transcribe',
+      language: lang === 'bg' ? 'bg' : lang === 'en' ? 'en' : undefined,
+      response_format: 'text',
+      prompt,
+    }), 30000, 'Transcription'), 'Transcription')
 
-  return transcription as unknown as string
+    // Cost: ~$0.006/min — estimate from file duration (assume 16kHz mono WAV, ~32KB/s)
+    const fileSizeBytes = fs.statSync(audioFilePath).size
+    const estimatedMinutes = fileSizeBytes / (32000 * 60)
+    lastCostEstimate += estimatedMinutes * 0.006
+
+    return transcription as unknown as string
+  } catch (primaryErr) {
+    console.warn('[Transcription] OpenAI failed, falling back to Groq whisper:', primaryErr)
+
+    // Fallback: Groq whisper-large-v3-turbo (cheaper but less accurate)
+    try {
+      const groq = getGroqClient()
+      const transcription = await withRetry(() => withTimeout(groq.audio.transcriptions.create({
+        file: fs.createReadStream(audioFilePath),
+        model: 'whisper-large-v3-turbo',
+        language: lang === 'bg' ? 'bg' : lang === 'en' ? 'en' : undefined,
+        response_format: 'text',
+        prompt,
+      }), 30000, 'Transcription-Groq-Fallback'), 'Transcription-Groq')
+
+      // Groq whisper is free-tier / very cheap — estimate ~$0.001/min
+      const fileSizeBytes = fs.statSync(audioFilePath).size
+      const estimatedMinutes = fileSizeBytes / (32000 * 60)
+      lastCostEstimate += estimatedMinutes * 0.001
+
+      return transcription as unknown as string
+    } catch (fallbackErr) {
+      console.error('[Transcription] Groq fallback also failed:', fallbackErr)
+      // Throw original error — it's more informative
+      throw primaryErr
+    }
+  }
 }
 
 /**
@@ -155,25 +219,56 @@ export async function cleanupText(rawText: string, options?: {
   if (getSetting('useServerProxy')) {
     return cleanupViaProxy(rawText, options)
   }
-  const client = getGroqClient()
   const dictionaryWords = getDictionaryWords()
   const style = options?.style || 'neutral'
   const level = options?.level || getSetting('cleanupLevel')
+  const instructions = buildCleanupPrompt(style, dictionaryWords, level, options?.polishInstructions)
+  const messages: { role: 'system' | 'user'; content: string }[] = [
+    { role: 'system', content: instructions },
+    { role: 'user', content: rawText }
+  ]
 
-  let instructions = buildCleanupPrompt(style, dictionaryWords, level, options?.polishInstructions)
+  // Primary: Groq llama-3.3-70b
+  try {
+    const client = getGroqClient()
+    const response = await withRetry(() => withTimeout(client.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages,
+      temperature: 0.3,
+      max_tokens: 4096
+    }), 15000, 'Cleanup'), 'Cleanup')
 
-  const response = await withTimeout(client.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: instructions },
-      { role: 'user', content: rawText }
-    ],
-    temperature: 0.3,
-    max_tokens: 4096
-  }), 15000, 'Cleanup')
+    // Cost: Groq llama-3.3-70b ~$0.0006/1K tokens
+    const totalTokens = response.usage?.total_tokens || Math.ceil((rawText.length + instructions.length) / 3)
+    lastCostEstimate += (totalTokens / 1000) * 0.0006
 
-  const cleaned = response.choices[0]?.message?.content?.trim() || rawText
-  return formatLists(cleaned)
+    const cleaned = response.choices[0]?.message?.content?.trim() || rawText
+    return formatLists(cleaned)
+  } catch (groqErr) {
+    console.warn('[Cleanup] Groq failed, falling back to OpenAI gpt-4o-mini:', groqErr)
+
+    // Fallback: OpenAI gpt-4o-mini
+    try {
+      const openaiClient = getCleanupClient()
+      const response = await withRetry(() => withTimeout(openaiClient.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages,
+        temperature: 0.3,
+        max_tokens: 4096
+      }), 15000, 'Cleanup-OpenAI-Fallback'), 'Cleanup-OpenAI')
+
+      // Cost: gpt-4o-mini ~$0.0003/1K tokens
+      const totalTokens = response.usage?.total_tokens || Math.ceil((rawText.length + instructions.length) / 3)
+      lastCostEstimate += (totalTokens / 1000) * 0.0003
+
+      const cleaned = response.choices[0]?.message?.content?.trim() || rawText
+      return formatLists(cleaned)
+    } catch (fallbackErr) {
+      console.error('[Cleanup] OpenAI fallback also failed:', fallbackErr)
+      // Return raw text rather than crashing — dictation should never be lost
+      return rawText
+    }
+  }
 }
 
 /**

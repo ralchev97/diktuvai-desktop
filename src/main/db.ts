@@ -13,6 +13,7 @@ export interface DictationRecord {
   app_name: string
   word_count: number
   duration_ms: number
+  cost_estimate: number
   created_at: string
 }
 
@@ -37,6 +38,7 @@ export interface UsageStats {
   dictations_total: number
   avg_wpm: number
   streak_days: number
+  total_cost: number
 }
 
 export function initDatabase(): void {
@@ -81,18 +83,24 @@ export function initDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_dictations_created ON dictations(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_dictations_text ON dictations(cleaned_text);
   `)
+
+  // Migration: add cost_estimate column if missing
+  const cols = db.pragma('table_info(dictations)') as { name: string }[]
+  if (!cols.find(c => c.name === 'cost_estimate')) {
+    db.exec(`ALTER TABLE dictations ADD COLUMN cost_estimate REAL DEFAULT 0`)
+  }
 }
 
 // Dictation History
-export function saveDictation(raw: string, cleaned: string, language: string, appName: string, durationMs: number): DictationRecord {
+export function saveDictation(raw: string, cleaned: string, language: string, appName: string, durationMs: number, costEstimate = 0): DictationRecord {
   const id = uuidv4()
   const wordCount = cleaned.split(/\s+/).filter(Boolean).length
   const now = new Date().toISOString()
 
   db.prepare(`
-    INSERT INTO dictations (id, raw_text, cleaned_text, language, app_name, word_count, duration_ms, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, raw, cleaned, language, appName, wordCount, durationMs, now)
+    INSERT INTO dictations (id, raw_text, cleaned_text, language, app_name, word_count, duration_ms, cost_estimate, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, raw, cleaned, language, appName, wordCount, durationMs, costEstimate, now)
 
   // Update daily usage
   const today = new Date().toISOString().split('T')[0]
@@ -105,7 +113,7 @@ export function saveDictation(raw: string, cleaned: string, language: string, ap
       total_duration_ms = total_duration_ms + ?
   `).run(today, wordCount, durationMs, wordCount, durationMs)
 
-  return { id, raw_text: raw, cleaned_text: cleaned, language, app_name: appName, word_count: wordCount, duration_ms: durationMs, created_at: now }
+  return { id, raw_text: raw, cleaned_text: cleaned, language, app_name: appName, word_count: wordCount, duration_ms: durationMs, cost_estimate: costEstimate, created_at: now }
 }
 
 export function getHistory(limit = 50, offset = 0): DictationRecord[] {
@@ -204,6 +212,8 @@ export function getUsageStats(): UsageStats {
   const totalWords = totalStats.words || 0
   const avgWpm = totalDurationMin > 0 ? Math.round(totalWords / totalDurationMin) : 0
 
+  const costRow = db.prepare('SELECT COALESCE(SUM(cost_estimate), 0) as total FROM dictations').get() as { total: number }
+
   return {
     words_today: todayStats?.word_count || 0,
     words_week: weekStats.words || 0,
@@ -211,7 +221,8 @@ export function getUsageStats(): UsageStats {
     dictations_today: todayStats?.dictation_count || 0,
     dictations_total: totalStats.dictations || 0,
     avg_wpm: avgWpm,
-    streak_days: streak
+    streak_days: streak,
+    total_cost: Math.round(costRow.total * 10000) / 10000
   }
 }
 

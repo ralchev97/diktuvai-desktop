@@ -17,6 +17,7 @@ if (isMac && !process.env.PATH?.includes('/opt/homebrew/bin')) {
 let recordingProcess: ReturnType<typeof spawn> | null = null
 let currentTempPath: string = ''
 let recordingStartTime: number = 0
+let currentAudioLevel: number = 0
 
 const logFilePath = () => path.join(app.getPath('userData'), 'dictation.log')
 function log(msg: string): void {
@@ -40,6 +41,7 @@ let cachedTools: { sox: boolean; ffmpeg: boolean; swift: boolean } | null = null
 export async function startRecording(deviceName?: string): Promise<void> {
   currentTempPath = path.join(app.getPath('temp'), `diktuvai_recording_${Date.now()}.wav`)
   recordingStartTime = Date.now()
+  currentAudioLevel = 0
 
   // Use cached tools check (don't re-check every time)
   if (!cachedTools) cachedTools = await checkRecordingTools()
@@ -142,11 +144,20 @@ guard let recorder = try? AVAudioRecorder(url: url, settings: settings) else {
     exit(1)
 }
 
+recorder.isMeteringEnabled = true
 recorder.record()
 fputs("RECORDING\\n", stderr)
 
 signal(SIGINT) { _ in exit(0) }
 signal(SIGTERM) { _ in exit(0) }
+
+// Output audio levels to stderr every 100ms for real-time visualization
+Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+    recorder.updateMeters()
+    let db = recorder.averagePower(forChannel: 0) // -160 to 0 dB
+    let level = max(0.0, min(1.0, (Double(db) + 50.0) / 50.0)) // normalize -50..0 dB to 0..1
+    fputs("LEVEL:\(String(format: "%.3f", level))\\n", stderr)
+}
 
 RunLoop.current.run()
 `
@@ -186,7 +197,14 @@ function startRecordingNativeMac(tempPath: string): void {
 
   recordingProcess.stderr?.on('data', (data: Buffer) => {
     const msg = data.toString().trim()
-    if (msg) log(`Recorder: ${msg}`)
+    // Parse real audio level lines from the Swift recorder
+    for (const line of msg.split('\n')) {
+      if (line.startsWith('LEVEL:')) {
+        currentAudioLevel = parseFloat(line.slice(6)) || 0
+      } else if (line) {
+        log(`Recorder: ${line}`)
+      }
+    }
   })
 
   recordingProcess.on('error', (err: Error) => {
@@ -568,4 +586,12 @@ export function createAudioStream(filePath: string): fs.ReadStream {
 
 export function isRecording(): boolean {
   return recordingProcess !== null
+}
+
+/**
+ * Get the current real audio level (0-1) from the recording process.
+ * Returns 0 if not recording or if the recorder doesn't support levels.
+ */
+export function getAudioLevel(): number {
+  return recordingProcess ? currentAudioLevel : 0
 }
