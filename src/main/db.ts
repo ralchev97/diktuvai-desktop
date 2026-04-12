@@ -117,6 +117,10 @@ export function searchHistory(query: string): DictationRecord[] {
     .all(`%${query}%`, `%${query}%`) as DictationRecord[]
 }
 
+export function getDictationById(id: string): DictationRecord | undefined {
+  return db.prepare('SELECT * FROM dictations WHERE id = ?').get(id) as DictationRecord | undefined
+}
+
 export function deleteDictation(id: string): void {
   db.prepare('DELETE FROM dictations WHERE id = ?').run(id)
 }

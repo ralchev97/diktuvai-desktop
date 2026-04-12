@@ -14,7 +14,8 @@ export function initAutoUpdater(window: BrowserWindow): void {
   })
 
   autoUpdater.on('update-available', (info) => {
-    dialog.showMessageBox(mainWindow!, {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: 'Налична е нова версия',
       message: `DiktuvAI ${info.version} е налична. Искате ли да я изтеглите?`,
@@ -31,7 +32,8 @@ export function initAutoUpdater(window: BrowserWindow): void {
   })
 
   autoUpdater.on('update-downloaded', () => {
-    dialog.showMessageBox(mainWindow!, {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: 'Актуализацията е готова',
       message: 'Актуализацията е изтеглена. Рестартирайте приложението за да я инсталирате.',

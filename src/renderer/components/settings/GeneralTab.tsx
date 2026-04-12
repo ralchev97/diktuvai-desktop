@@ -152,26 +152,47 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
-// Whether this shortcut key is a single modifier (hold-to-talk style) or a combo
-const MODIFIER_ONLY_KEYS = new Set(['hotkey', 'commandHotkey'])
+// Whether this shortcut key is a hold-to-talk style (modifiers only, including combos and Fn)
+const HOLD_TO_TALK_KEYS = new Set(['hotkey', 'commandHotkey'])
 
-function keyEventToSettingValue(e: React.KeyboardEvent, settingKey: string): string | null {
+// Modifier keys that can be part of a hold-to-talk combo
+const MODIFIER_NAMES: Record<string, (location: number) => string> = {
+  'Alt': (loc) => loc === 2 ? 'RightOption' : 'LeftOption',
+  'Control': (loc) => loc === 2 ? 'RightCtrl' : 'LeftCtrl',
+  'Shift': (loc) => loc === 2 ? 'RightShift' : 'LeftShift',
+}
+
+const isMac = navigator.userAgent.includes('Mac')
+
+/**
+ * Convert a keyboard event to a hotkey setting value.
+ * For hold-to-talk keys: supports single modifiers, modifier combos, and Fn.
+ * For combo keys: supports modifier+key combinations.
+ */
+function keyEventToSettingValue(e: React.KeyboardEvent, settingKey: string, currentParts: string[]): { value: string | null; parts: string[] } {
   e.preventDefault()
   e.stopPropagation()
 
-  const isModifierOnly = MODIFIER_ONLY_KEYS.has(settingKey)
+  const isHoldToTalk = HOLD_TO_TALK_KEYS.has(settingKey)
 
-  // For modifier-only shortcuts (push-to-talk, command mode)
-  if (isModifierOnly) {
-    if (e.key === 'Alt') return e.location === 2 ? 'RightOption' : 'LeftOption'
-    if (e.key === 'Control') return e.location === 2 ? 'RightCtrl' : 'LeftCtrl'
-    // Fn key not supported on macOS (no key events generated)
-    // Ignore non-modifier keys for these settings
-    return null
+  // For hold-to-talk shortcuts (push-to-talk, command mode)
+  if (isHoldToTalk) {
+    const mapper = MODIFIER_NAMES[e.key]
+    if (mapper) {
+      const part = mapper(e.location)
+      // Build combo: add this modifier if not already present
+      const newParts = [...currentParts]
+      if (!newParts.includes(part)) {
+        newParts.push(part)
+      }
+      return { value: newParts.join('+'), parts: newParts }
+    }
+    // Ignore non-modifier keys
+    return { value: null, parts: currentParts }
   }
 
   // For combo shortcuts (undo, dismiss, polishPaste)
-  if (e.key === 'Escape') return 'Escape'
+  if (e.key === 'Escape') return { value: 'Escape', parts: [] }
 
   const parts: string[] = []
   if (e.metaKey) parts.push('CommandOrControl')
@@ -180,63 +201,129 @@ function keyEventToSettingValue(e: React.KeyboardEvent, settingKey: string): str
   if (e.altKey) parts.push('Alt')
 
   const key = e.key
-  // Skip if only a modifier was pressed (for combo shortcuts, we need a base key)
-  if (['Meta', 'Control', 'Shift', 'Alt', 'Fn'].includes(key)) return null
+  if (['Meta', 'Control', 'Shift', 'Alt', 'Fn'].includes(key)) return { value: null, parts: [] }
 
   parts.push(key.length === 1 ? key.toUpperCase() : key)
-  return parts.join('+')
+  return { value: parts.join('+'), parts: [] }
+}
+
+function displayValue(v: string): string {
+  if (!v) return ''
+  return v
+    .replace(/CommandOrControl/g, isMac ? '⌘' : 'Ctrl')
+    .replace(/RightCtrl|LeftCtrl/g, '⌃')
+    .replace(/Ctrl/g, '⌃')
+    .replace(/RightOption|LeftOption/g, '⌥')
+    .replace(/RightAlt|LeftAlt|Alt/g, '⌥')
+    .replace(/RightShift|LeftShift/g, '⇧')
+    .replace(/Shift/g, '⇧')
+    .replace(/RightCmd|LeftCmd|Cmd/g, '⌘')
+    .replace(/Escape/g, 'ESC')
+    .replace(/Fn/g, isMac ? '🌐 Fn' : 'Fn')
+    .replace(/\+/g, ' + ')
 }
 
 function ShortcutRow({ label, value, settingKey, onUpdate }: { label: string; value: string; settingKey: string; onUpdate: (key: string, value: unknown) => void }) {
   const [editing, setEditing] = useState(false)
+  const [comboParts, setComboParts] = useState<string[]>([])
+  const [comboTimer, setComboTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const isHoldToTalk = HOLD_TO_TALK_KEYS.has(settingKey)
 
-  const displayValue = (v: string) => {
-    return v
-      .replace('CommandOrControl', '⌘')
-      .replace('Control', '⌃')
-      .replace('Right', '')
-      .replace('Left', '')
-      .replace('Option', '⌥')
-      .replace('Alt', '⌥')
-      .replace('Shift', '⇧')
-      .replace('Escape', 'ESC')
-      .replace(/\+/g, ' + ')
+  const startEditing = () => {
+    setComboParts([])
+    setEditing(true)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const newValue = keyEventToSettingValue(e, settingKey)
+    const { value: newValue, parts } = keyEventToSettingValue(e, settingKey, comboParts)
+
+    if (!isHoldToTalk) {
+      // Combo shortcuts: save immediately when a non-modifier key is pressed
+      if (newValue) {
+        onUpdate(settingKey, newValue)
+        setEditing(false)
+      }
+      return
+    }
+
+    // Hold-to-talk: accumulate modifier keys, save after 500ms of no new keys
     if (newValue) {
-      onUpdate(settingKey, newValue)
-      setEditing(false)
+      setComboParts(parts)
+      if (comboTimer) clearTimeout(comboTimer)
+      const timer = setTimeout(() => {
+        onUpdate(settingKey, newValue)
+        setEditing(false)
+        setComboParts([])
+      }, 500)
+      setComboTimer(timer)
     }
   }
 
   const handleBlur = () => {
+    if (comboTimer) clearTimeout(comboTimer)
+    // If we have accumulated parts, save them
+    if (comboParts.length > 0) {
+      onUpdate(settingKey, comboParts.join('+'))
+    }
     setEditing(false)
+    setComboParts([])
   }
+
+  // Fn button for hold-to-talk shortcuts (macOS only)
+  const handleFnClick = () => {
+    if (comboTimer) clearTimeout(comboTimer)
+    const newParts = [...comboParts]
+    if (!newParts.some(p => p === 'Fn')) {
+      newParts.unshift('Fn') // Fn goes first
+    }
+    setComboParts(newParts)
+    // Save after a short delay to allow adding more modifiers
+    const timer = setTimeout(() => {
+      onUpdate(settingKey, newParts.join('+'))
+      setEditing(false)
+      setComboParts([])
+    }, 500)
+    setComboTimer(timer)
+  }
+
+  const editingDisplay = comboParts.length > 0
+    ? displayValue(comboParts.join('+')) + ' ...'
+    : (isHoldToTalk ? 'Натисни клавиш...' : 'Натисни комбинация...')
 
   return (
     <div
       className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
-      onClick={() => !editing && setEditing(true)}
+      onClick={() => !editing && startEditing()}
     >
       <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-      {editing ? (
-        <kbd
-          tabIndex={0}
-          autoFocus
-          onKeyDown={handleKeyDown}
-          onBlur={handleBlur}
-          ref={(el) => el?.focus()}
-          className="px-2.5 py-1 bg-brand-blue/20 dark:bg-brand-blue/30 rounded-md text-xs font-mono text-brand-blue border border-brand-blue shadow-sm animate-pulse outline-none min-w-[80px] text-center"
-        >
-          {MODIFIER_ONLY_KEYS.has(settingKey) ? 'Натисни клавиш...' : 'Натисни комбинация...'}
-        </kbd>
-      ) : (
-        <kbd className="px-2.5 py-1 bg-white dark:bg-gray-700 rounded-md text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 shadow-sm">
-          {displayValue(value)}
-        </kbd>
-      )}
+      <div className="flex items-center gap-1.5">
+        {editing && isHoldToTalk && isMac && (
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => { e.stopPropagation(); handleFnClick() }}
+            className="px-2 py-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded text-xs font-mono text-gray-700 dark:text-gray-200 transition-colors"
+            title="Fn / Globe key"
+          >
+            🌐 Fn
+          </button>
+        )}
+        {editing ? (
+          <kbd
+            tabIndex={0}
+            autoFocus
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+            ref={(el) => el?.focus()}
+            className="px-2.5 py-1 bg-brand-blue/20 dark:bg-brand-blue/30 rounded-md text-xs font-mono text-brand-blue border border-brand-blue shadow-sm animate-pulse outline-none min-w-[80px] text-center"
+          >
+            {editingDisplay}
+          </kbd>
+        ) : (
+          <kbd className="px-2.5 py-1 bg-white dark:bg-gray-700 rounded-md text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 shadow-sm">
+            {displayValue(value)}
+          </kbd>
+        )}
+      </div>
     </div>
   )
 }

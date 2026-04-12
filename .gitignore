@@ -14,3 +14,6 @@ build/certs/
 *.certSigningRequest
 *.p12
 .env.signing
+
+# Native addon build artifacts
+native/fn-key/build/

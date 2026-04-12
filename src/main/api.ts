@@ -31,38 +31,57 @@ function getOpenAIClient(): OpenAI {
 
 export function resetClient(): void {
   openaiClient = null
+  groqClient = null
+  cleanupClient = null
 }
 
-// Groq client for Whisper STT (8.5x cheaper)
+// Groq client for cleanup (used only in direct mode)
 let groqClient: OpenAI | null = null
 function getGroqClient(): OpenAI {
   if (!groqClient) {
-    // In dev mode, use hardcoded key; in prod, use server proxy
-    const apiKey = process.env.GROQ_API_KEY || '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'
+    const apiKey = process.env.GROQ_API_KEY
+    if (!apiKey) throw new Error('GROQ_API_KEY not set — use server proxy mode')
     groqClient = new OpenAI({ apiKey, baseURL: 'https://api.groq.com/openai/v1' })
   }
   return groqClient
 }
 
-// OpenAI client for text cleanup (GPT-4o-mini)
+// OpenAI client for transcription + commands (used only in direct mode)
 let cleanupClient: OpenAI | null = null
 function getCleanupClient(): OpenAI {
   if (!cleanupClient) {
-    const apiKey = getSetting('apiKey') || process.env.OPENAI_API_KEY || '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'
+    const apiKey = getSetting('apiKey') || process.env.OPENAI_API_KEY
+    if (!apiKey) throw new Error('OpenAI API key not configured — use server proxy mode')
     cleanupClient = new OpenAI({ apiKey })
   }
   return cleanupClient
 }
 
 /**
- * Transcribe audio using Groq Whisper API (direct, no proxy).
+ * Transcribe audio — routes through server proxy or direct API based on settings.
  */
 export async function transcribeAudio(audioFilePath: string, language?: string): Promise<string> {
-  const client = getCleanupClient() // OpenAI client for gpt-4o-transcribe
+  if (getSetting('useServerProxy')) {
+    return transcribeViaProxy(audioFilePath, language)
+  }
+  return transcribeDirect(audioFilePath, language)
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+    )
+  ])
+}
+
+async function transcribeDirect(audioFilePath: string, language?: string): Promise<string> {
+  const client = getCleanupClient()
   const langSetting = language || getSetting('language')
   const lang = langSetting === 'auto' ? undefined : langSetting
 
-  const transcription = await client.audio.transcriptions.create({
+  const transcription = await withTimeout(client.audio.transcriptions.create({
     file: fs.createReadStream(audioFilePath),
     model: 'gpt-4o-transcribe',
     language: lang === 'bg' ? 'bg' : lang === 'en' ? 'en' : undefined,
@@ -72,7 +91,7 @@ export async function transcribeAudio(audioFilePath: string, language?: string):
       : lang === 'en'
       ? 'Accurate transcription, word by word.'
       : 'Accurate transcription, word by word. The speaker may use Bulgarian or English.',
-  })
+  }), 30000, 'Transcription')
 
   return transcription as unknown as string
 }
@@ -120,7 +139,7 @@ async function transcribeViaProxy(audioFilePath: string, language?: string): Pro
 }
 
 /**
- * Clean up transcribed text using GPT-4o.
+ * Clean up transcribed text — routes through server proxy or direct API.
  */
 export async function cleanupText(rawText: string, options?: {
   style?: string
@@ -133,7 +152,9 @@ export async function cleanupText(rawText: string, options?: {
     reorderForReadability: boolean
   }
 }): Promise<string> {
-  // Use Groq for cleanup too — much faster inference than OpenAI
+  if (getSetting('useServerProxy')) {
+    return cleanupViaProxy(rawText, options)
+  }
   const client = getGroqClient()
   const dictionaryWords = getDictionaryWords()
   const style = options?.style || 'neutral'
@@ -141,7 +162,7 @@ export async function cleanupText(rawText: string, options?: {
 
   let instructions = buildCleanupPrompt(style, dictionaryWords, level, options?.polishInstructions)
 
-  const response = await client.chat.completions.create({
+  const response = await withTimeout(client.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: instructions },
@@ -149,7 +170,7 @@ export async function cleanupText(rawText: string, options?: {
     ],
     temperature: 0.3,
     max_tokens: 4096
-  })
+  }), 15000, 'Cleanup')
 
   const cleaned = response.choices[0]?.message?.content?.trim() || rawText
   return formatLists(cleaned)
@@ -229,6 +250,9 @@ async function cleanupViaProxy(rawText: string, options?: {
  * Process a voice command on selected text.
  */
 export async function processCommand(command: string, selectedText?: string): Promise<string> {
+  if (getSetting('useServerProxy')) {
+    return processCommandViaProxy(command, selectedText)
+  }
   const client = getCleanupClient()
 
   const systemPrompt = selectedText
@@ -239,7 +263,7 @@ export async function processCommand(command: string, selectedText?: string): Pr
     ? `Selected text: "${selectedText}"\n\nCommand: ${command}`
     : `Command: ${command}`
 
-  const response = await client.chat.completions.create({
+  const response = await withTimeout(client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
@@ -247,7 +271,7 @@ export async function processCommand(command: string, selectedText?: string): Pr
     ],
     temperature: 0.3,
     max_tokens: 4096
-  })
+  }), 15000, 'Command')
 
   return response.choices[0]?.message?.content?.trim() || ''
 }

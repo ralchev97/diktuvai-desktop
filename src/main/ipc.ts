@@ -2,12 +2,13 @@ import { ipcMain, app, shell, systemPreferences, BrowserWindow } from 'electron'
 import { getSettings, getSetting, setSetting, setSettings } from './store'
 import { startDictationSession, stopDictationSession, cancelDictationSession } from './dictation'
 import {
-  getHistory, searchHistory, deleteDictation,
+  getHistory, searchHistory, deleteDictation, getDictationById,
   getDictionary, addWord, removeWord, updateWord,
   getSnippets, addSnippet, removeSnippet, updateSnippet,
   getUsageStats
 } from './db'
 import { getAudioDevices } from './audio'
+import { resetClient } from './api'
 import {
   requestCode,
   verifyCode,
@@ -18,11 +19,18 @@ import {
   createPortalUrl,
 } from './license'
 import { checkForUpdates } from './updater'
+import { refreshFnHelper } from './shortcuts'
 import { clipboard } from 'electron'
-import { exec } from 'child_process'
-import { promisify } from 'util'
 
-const execAsync = promisify(exec)
+// Settings the renderer is allowed to modify
+const ALLOWED_SETTINGS = new Set([
+  'language', 'hotkey', 'commandHotkey', 'dismissHotkey', 'undoHotkey', 'polishPasteHotkey',
+  'aiFormatting', 'cleanupLevel', 'microphone', 'soundEffects',
+  'muteMusic', 'openAtLogin', 'hideFromDock', 'uiLocale',
+  'autoLearnDictionary', 'writingStyle', 'polishInstructions',
+  'contextAwareness', 'shareUsageData', 'privacyMode',
+  'useServerProxy', 'apiKey'
+])
 
 export function registerIpcHandlers(): void {
   // Settings
@@ -31,7 +39,16 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('settings:set', (_event, key: string, value: unknown) => {
+    if (!ALLOWED_SETTINGS.has(key)) {
+      throw new Error(`Setting "${key}" is not allowed from renderer`)
+    }
     setSetting(key as any, value as any)
+    if (key === 'hotkey' || key === 'commandHotkey' || key === 'dismissHotkey') {
+      refreshFnHelper()
+    }
+    if (key === 'apiKey') {
+      resetClient()
+    }
     return true
   })
 
@@ -66,8 +83,7 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('history:copy', (_event, id: string) => {
-    const items = getHistory(1000, 0)
-    const item = items.find(i => i.id === id)
+    const item = getDictationById(id)
     if (item) {
       clipboard.writeText(item.cleaned_text)
     }
@@ -158,6 +174,15 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('app:openExternal', (_event, url: string) => {
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error('Only HTTP(S) URLs allowed')
+      }
+    } catch (e) {
+      if (e instanceof TypeError) throw new Error('Invalid URL')
+      throw e
+    }
     shell.openExternal(url)
     return true
   })
@@ -178,7 +203,6 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('permissions:accessibility', async () => {
     try {
-      // On macOS, we need to check accessibility permissions
       const trusted = systemPreferences.isTrustedAccessibilityClient(true)
       return trusted
     } catch {

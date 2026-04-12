@@ -54,7 +54,7 @@ function createSettingsWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false
+      sandbox: true
     }
   }
 
@@ -129,7 +129,7 @@ function createOverlayWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false
+      sandbox: true
     }
   })
 

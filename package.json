@@ -91,6 +91,12 @@
       "dist/**/*",
       "resources/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "native/fn-key/build/Release/fn_key.node",
+        "to": "fn_key.node"
+      }
+    ],
     "directories": {
       "output": "release"
     },

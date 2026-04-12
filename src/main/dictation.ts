@@ -1,7 +1,7 @@
 import { BrowserWindow, app } from 'electron'
 import { startRecording, stopRecording, cancelRecording, isRecording, cleanupTempFiles } from './audio'
 import { transcribeAudio, cleanupText, processCommand } from './api'
-import { pasteText, undoLastPaste, getSelectedText, getActiveAppName, playSound, rememberActiveApp } from './paste'
+import { pasteText, undoLastPaste, getSelectedText, getActiveAppName, playSound, rememberActiveApp, muteMusic, unmuteMusic } from './paste'
 import { saveDictation, getSnippets } from './db'
 import { getSetting } from './store'
 import fs from 'fs'
@@ -21,6 +21,7 @@ let overlayWindow: BrowserWindow | null = null
 let lastPastedText: string = ''
 let dictationStartTime: number = 0
 let audioLevelInterval: ReturnType<typeof setInterval> | null = null
+let selectedTextForCommand: string = ''
 
 function startAudioLevelUpdates(): void {
   stopAudioLevelUpdates()
@@ -100,11 +101,16 @@ export async function startDictationSession(): Promise<void> {
   try {
     dictationStartTime = Date.now()
 
+    // Mute music if enabled
+    if (getSetting('muteMusic')) {
+      muteMusic().catch(() => {})
+    }
+
     // Start recording FIRST — before anything else
     startRecording(getSetting('microphone')).catch(err => log(`Recording error: ${err}`))
 
     // Then sound + UI + active app (non-blocking)
-    playSound('start').catch(() => {})
+    if (getSetting('soundEffects')) playSound('start').catch(() => {})
     setState('recording')
     startAudioLevelUpdates()
     rememberActiveApp().catch(() => {})
@@ -187,12 +193,15 @@ export async function stopDictationSession(): Promise<void> {
     lastPastedText = cleanedText
     log('Paste done')
 
-    playSound('stop').catch(() => {})
+    if (getSetting('soundEffects')) playSound('stop').catch(() => {})
+    if (getSetting('muteMusic')) unmuteMusic().catch(() => {})
     setState('idle', { text: cleanedText })
 
-    // Save to history in background (non-blocking)
-    const appName = await getActiveAppName()
-    saveDictation(rawText, cleanedText, getSetting('language'), appName, result.durationMs)
+    // Save to history (skip if privacy mode is on)
+    if (!getSetting('privacyMode')) {
+      const appName = await getActiveAppName()
+      saveDictation(rawText, cleanedText, getSetting('language'), appName, result.durationMs)
+    }
     cleanupTempFiles()
   } catch (err) {
     log(`DICTATION ERROR: ${err instanceof Error ? err.stack : err}`)
@@ -245,7 +254,7 @@ export async function startCommandMode(): Promise<void> {
     startRecording(getSetting('microphone'))
 
     // Store selected text for when recording stops
-    ;(global as any).__selectedTextForCommand = selectedText
+    selectedTextForCommand = selectedText
   } catch (err) {
     console.error('Failed to start command mode:', err)
     setState('error', { message: 'Неуспешно стартиране' })
@@ -278,8 +287,8 @@ export async function stopCommandMode(): Promise<void> {
 
     setState('processing')
 
-    const selectedText = (global as any).__selectedTextForCommand || ''
-    delete (global as any).__selectedTextForCommand
+    const selectedText = selectedTextForCommand
+    selectedTextForCommand = ''
 
     const resultText = await processCommand(command, selectedText || undefined)
 
