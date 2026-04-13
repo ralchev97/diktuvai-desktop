@@ -39,7 +39,7 @@ export interface AudioRecordingResult {
 let cachedTools: { sox: boolean; ffmpeg: boolean; swift: boolean } | null = null
 
 export async function startRecording(deviceName?: string): Promise<void> {
-  currentTempPath = path.join(app.getPath('temp'), `diktuvai_recording_${Date.now()}.wav`)
+  currentTempPath = path.join(app.getPath('temp'), `diktuvai_recording_${Date.now()}.m4a`)
   recordingStartTime = Date.now()
   currentAudioLevel = 0
 
@@ -131,12 +131,10 @@ guard CommandLine.arguments.count > 1 else {
 
 let url = URL(fileURLWithPath: CommandLine.arguments[1])
 let settings: [String: Any] = [
-    AVFormatIDKey: Int(kAudioFormatLinearPCM),
+    AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
     AVSampleRateKey: 16000,
     AVNumberOfChannelsKey: 1,
-    AVLinearPCMBitDepthKey: 16,
-    AVLinearPCMIsFloatKey: false,
-    AVLinearPCMIsBigEndianKey: false
+    AVEncoderBitRateKey: 32000
 ]
 
 guard let recorder = try? AVAudioRecorder(url: url, settings: settings) else {

@@ -108,10 +108,10 @@ async function transcribeDirect(audioFilePath: string, language?: string): Promi
   const langSetting = language || getSetting('language')
   const lang = langSetting === 'auto' ? undefined : langSetting
   const prompt = lang === 'bg'
-    ? 'Точна транскрипция на българска реч, дума по дума. Запази всяка дума точно както е казана, включително имена на хора. Не пропускай думи и не ги заменяй.'
+    ? 'Точна транскрипция на българска реч. Запази английски думи, имена и брандове на латиница (напр. "WhatsApp", "Google", "iPhone"). Не ги транскрибирай на кирилица.'
     : lang === 'en'
     ? 'Accurate transcription, word by word.'
-    : 'Accurate transcription, word by word. The speaker may use Bulgarian or English.'
+    : 'Transcribe speech accurately. Keep English words, names and brands in Latin script. Keep Bulgarian text in Cyrillic. Do not transliterate between scripts.'
 
   // Primary: OpenAI gpt-4o-transcribe (with retry for 429/5xx)
   try {
