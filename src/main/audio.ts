@@ -148,15 +148,15 @@ recorder.isMeteringEnabled = true
 recorder.record()
 fputs("RECORDING\\n", stderr)
 
-signal(SIGINT) { _ in recorder.stop(); exit(0) }
-signal(SIGTERM) { _ in recorder.stop(); exit(0) }
+signal(SIGINT) { _ in exit(0) }
+signal(SIGTERM) { _ in exit(0) }
 
 // Output audio levels to stderr every 100ms for real-time visualization
 Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
     recorder.updateMeters()
     let db = recorder.averagePower(forChannel: 0) // -160 to 0 dB
     let level = max(0.0, min(1.0, (Double(db) + 50.0) / 50.0)) // normalize -50..0 dB to 0..1
-    fputs("LEVEL:\(String(format: "%.3f", level))\\n", stderr)
+    fputs("LEVEL:\\(String(format: "%.3f", level))\\n", stderr)
 }
 
 RunLoop.current.run()
