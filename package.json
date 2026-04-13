@@ -85,9 +85,20 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "appx"
       ],
       "icon": "resources/icon.png"
+    },
+    "appx": {
+      "identityName": "DiktuvAI.DiktuvAI",
+      "publisher": "CN=1456476C-671B-4851-B4C9-B5AAB998923D",
+      "publisherDisplayName": "DiktuvAI",
+      "displayName": "DiktuvAI",
+      "applicationId": "DiktuvAI",
+      "backgroundColor": "#1a1a2e",
+      "languages": ["bg-BG", "en-US"],
+      "showNameOnTiles": true
     },
     "nsis": {
       "oneClick": false,

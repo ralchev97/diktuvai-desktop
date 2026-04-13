@@ -148,10 +148,10 @@ jobs:
       - name: Build renderer + main
         run: npm run build
 
-      - name: Package Windows
+      - name: Package Windows (NSIS + APPX)
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npx electron-builder --win --publish always
+        run: npx electron-builder --win nsis appx --publish always
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -159,4 +159,5 @@ jobs:
           name: DiktuvAI-Windows
           path: |
             release/*.exe
+            release/*.appx
             release/latest.yml
