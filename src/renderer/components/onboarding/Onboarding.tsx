@@ -60,7 +60,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }
   }
 
-  const isNextDisabled = step === 'accessibility' && !accessibilityGranted
+  // Never block onboarding — user can grant accessibility permission later
+  const isNextDisabled = false
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-gray-900">
