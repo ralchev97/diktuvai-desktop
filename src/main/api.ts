@@ -111,7 +111,7 @@ async function transcribeDirect(audioFilePath: string, language?: string): Promi
     ? 'Точна транскрипция на българска реч. Запази английски думи, имена и брандове на латиница (напр. "WhatsApp", "Google", "iPhone"). Не ги транскрибирай на кирилица.'
     : lang === 'en'
     ? 'Accurate transcription, word by word.'
-    : 'Transcribe speech accurately. Keep English words, names and brands in Latin script. Keep Bulgarian text in Cyrillic. Do not transliterate between scripts.'
+    : 'Transcribe in Bulgarian or English ONLY. The speaker uses Bulgarian and English — no other languages. Keep English words in Latin script, Bulgarian in Cyrillic.'
 
   // Primary: OpenAI gpt-4o-transcribe (with retry for 429/5xx)
   try {
