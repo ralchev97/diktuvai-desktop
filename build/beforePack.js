@@ -9,7 +9,8 @@ exports.default = async function beforePack(context) {
   if (context.electronPlatformName !== 'darwin') return
 
   const arch = context.arch === 1 ? 'x64' : context.arch === 3 ? 'arm64' : 'x64'
-  const nativeDir = path.join(context.appDir, 'native', 'fn-key')
+  const projectDir = context.packager.projectDir
+  const nativeDir = path.join(projectDir, 'native', 'fn-key')
 
   console.log(`[beforePack] Building fn_key native addon for ${arch}`)
   try {
@@ -21,7 +22,7 @@ exports.default = async function beforePack(context) {
         env: {
           ...process.env,
           // Ensure node-gyp can find node-addon-api from root node_modules
-          NODE_PATH: path.join(context.appDir, 'node_modules'),
+          NODE_PATH: path.join(projectDir, 'node_modules'),
         },
       }
     )
