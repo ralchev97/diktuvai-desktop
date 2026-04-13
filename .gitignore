@@ -17,3 +17,4 @@ build/certs/
 
 # Native addon build artifacts
 native/fn-key/build/
+SIGNING_NOTES.md

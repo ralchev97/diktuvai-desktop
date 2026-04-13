@@ -15,11 +15,10 @@ export function resetCostEstimate(): void { lastCostEstimate = 0 }
 let openaiClient: OpenAI | null = null
 
 function getServerConfig() {
-  const isDev = !require('electron').app.isPackaged
   return {
-    protocol: isDev ? http : https,
-    hostname: isDev ? 'localhost' : 'diktuvai.bg',
-    port: isDev ? 3000 : 443,
+    protocol: https,
+    hostname: 'diktuvai.bg',
+    port: 443,
   }
 }
 
