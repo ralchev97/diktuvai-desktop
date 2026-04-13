@@ -220,22 +220,26 @@ export async function stopDictationSession(): Promise<void> {
       return
     }
 
-    // AI Cleanup — skip for 'low' level (gpt-4o-transcribe is already clean)
+    // AI Cleanup
+    // In proxy mode, /api/transcribe already does cleanup server-side — skip local cleanup
+    // In direct mode, call cleanup separately
     let cleanedText = rawText.trim()
+    const useProxy = getSetting('useServerProxy')
     const cleanupLevel = getSetting('cleanupLevel')
-    if (getSetting('aiFormatting') && cleanupLevel !== 'low') {
+    if (!useProxy && getSetting('aiFormatting') && cleanupLevel !== 'low') {
       setState('processing')
       cleanedText = await cleanupText(rawText, {
         level: cleanupLevel,
         polishInstructions: getSetting('polishInstructions')
       })
-    } else {
+    } else if (!useProxy) {
       // Basic cleanup: trim whitespace, ensure ends with punctuation
       cleanedText = cleanedText.replace(/^\s+|\s+$/g, '')
       if (cleanedText && !/[.!?]$/.test(cleanedText)) {
         cleanedText += '.'
       }
     }
+    // Proxy mode: rawText is already cleaned by the server
 
     // Paste
     log(`Pasting: "${cleanedText}"`)

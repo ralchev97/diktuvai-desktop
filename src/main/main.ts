@@ -97,8 +97,11 @@ function createSettingsWindow(): BrowserWindow {
     })
   }
 
+  let isQuitting = false
+  app.on('before-quit', () => { isQuitting = true })
+
   settingsWindow.on('close', (e) => {
-    // Don't quit, just hide
+    if (isQuitting) return // Allow quit from Dock/Cmd+Q
     e.preventDefault()
     settingsWindow?.hide()
   })
