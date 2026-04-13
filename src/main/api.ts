@@ -317,7 +317,8 @@ async function cleanupViaProxy(rawText: string, options?: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body)
+        'Content-Length': Buffer.byteLength(body),
+        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
       }
     }, (res) => {
       let data = ''
@@ -333,7 +334,7 @@ async function cleanupViaProxy(rawText: string, options?: {
       })
     })
 
-    req.on('error', () => resolve(rawText))
+    req.on('error', (err) => reject(err))
     req.write(body)
     req.end()
   })
@@ -387,7 +388,8 @@ async function processCommandViaProxy(command: string, selectedText?: string): P
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body)
+        'Content-Length': Buffer.byteLength(body),
+        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
       }
     }, (res) => {
       let data = ''

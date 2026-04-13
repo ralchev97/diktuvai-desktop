@@ -54,7 +54,7 @@ const defaults: AppSettings = {
   undoHotkey: 'CommandOrControl+Z',
   polishPasteHotkey: 'CommandOrControl+Shift+V',
   aiFormatting: true,
-  cleanupLevel: 'medium',
+  cleanupLevel: 'low',
   microphone: 'default',
   soundEffects: true,
   muteMusic: true,

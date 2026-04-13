@@ -247,7 +247,7 @@ app.whenReady().then(async () => {
   if (!getSetting('onboardingComplete') || !app.isPackaged) {
     settingsWindow?.show()
     settingsWindow?.focus()
-    if (isMac) app.dock?.show()
+    if (isMac && !getSetting('hideFromDock')) app.dock?.show()
   }
 
   // Check for updates after a delay (only in production)

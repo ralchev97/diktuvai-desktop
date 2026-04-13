@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { t } from '../../i18n'
 import { api } from '../../hooks/useAPI'
 
@@ -7,28 +7,29 @@ export default function TestStep() {
   const [result, setResult] = useState<string>('')
   const [tested, setTested] = useState(false)
   const [recording, setRecording] = useState(false)
+  const recordingRef = useRef(false)
 
-  // Listen to dictation state directly
   useEffect(() => {
     const cleanup = api?.onDictationState((state, data) => {
       setDictState(state)
       if (state === 'recording') {
+        recordingRef.current = true
         setRecording(true)
       }
-      if (state === 'idle' && recording) {
-        // Test passed if we recorded successfully (even if transcription failed — user may not be logged in yet)
+      if (state === 'idle' && recordingRef.current) {
         if (data && typeof data === 'object' && (data as any).text) {
           setResult((data as any).text)
         } else {
           setResult('Микрофонът работи! Влезте в акаунта си за пълна диктовка.')
         }
         setTested(true)
+        recordingRef.current = false
         setRecording(false)
       }
       if (state === 'error') {
-        // Even on error, the recording worked — show success for onboarding
         setResult('Микрофонът работи! Влезте в акаунта си за пълна диктовка.')
         setTested(true)
+        recordingRef.current = false
         setRecording(false)
       }
     })
@@ -37,11 +38,13 @@ export default function TestStep() {
 
   const handleClick = async () => {
     if (recording || dictState === 'recording') {
+      recordingRef.current = false
       setRecording(false)
       await api?.stopDictation()
     } else {
       setResult('')
       setTested(false)
+      recordingRef.current = true
       setRecording(true)
       await api?.startDictation()
     }

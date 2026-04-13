@@ -1,6 +1,6 @@
 {
   "name": "diktuvai",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "description": "DiktuvAI - Гласово диктуване с AI за България",
   "author": "Vasil Ralchev <v_ralchev@icloud.com>",
   "main": "dist/main/main.js",
@@ -76,6 +76,7 @@
       "extendInfo": {
         "NSMicrophoneUsageDescription": "DiktuvAI се нуждае от достъп до микрофона за гласово диктуване.",
         "NSAppleEventsUsageDescription": "DiktuvAI се нуждае от достъп за вмъкване на текст в други приложения.",
+        "NSInputMonitoringUsageDescription": "DiktuvAI се нуждае от достъп за улавяне на клавишни комбинации за диктуване.",
         "LSUIElement": false
       }
     },

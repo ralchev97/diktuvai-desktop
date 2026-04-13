@@ -205,7 +205,6 @@ function displayValue(v: string): string {
     .replace(/Shift/g, '⇧')
     .replace(/RightCmd|LeftCmd|Cmd/g, '⌘')
     .replace(/Escape/g, 'ESC')
-    .replace(/Fn/g, isMac ? '🌐 Fn' : 'Fn')
     .replace(/\+/g, ' + ')
 }
 

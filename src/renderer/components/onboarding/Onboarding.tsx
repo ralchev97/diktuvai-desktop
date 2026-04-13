@@ -19,7 +19,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const isMac = api?.getPlatform() === 'darwin'
 
   const steps = useMemo<Step[]>(() => {
-    const all: Step[] = ['welcome', 'mic', 'accessibility', 'language', 'hotkey', 'test', 'login']
+    const all: Step[] = ['welcome', 'mic', 'accessibility', 'language', 'hotkey', 'login', 'test']
     // Windows doesn't need Accessibility permission
     if (!isMac) return all.filter(s => s !== 'accessibility')
     return all
@@ -98,16 +98,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         </button>
 
         <div className="flex gap-3">
-          {step === 'login' && (
-            <button
-              onClick={handleFinish}
-              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-colors"
-            >
-              {t('onboarding.skipForNow')}
-            </button>
-          )}
           <button
-            onClick={step === 'login' ? handleFinish : handleNext}
+            onClick={step === 'test' ? handleFinish : handleNext}
             disabled={isNextDisabled}
             className={`px-6 py-2 text-white text-sm font-medium rounded-lg transition-colors ${
               isNextDisabled
