@@ -3,7 +3,6 @@ import fs from 'fs'
 import { getSetting } from './store'
 import { getDictionaryWords } from './db'
 import https from 'https'
-import http from 'http'
 import FormData from 'form-data'
 import path from 'path'
 

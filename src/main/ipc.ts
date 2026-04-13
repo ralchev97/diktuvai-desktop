@@ -29,7 +29,7 @@ const ALLOWED_SETTINGS = new Set([
   'muteMusic', 'openAtLogin', 'hideFromDock', 'uiLocale',
   'autoLearnDictionary', 'writingStyle', 'polishInstructions',
   'contextAwareness', 'shareUsageData', 'privacyMode',
-  'useServerProxy', 'apiKey'
+  'useServerProxy', 'apiKey', 'userEmail'
 ])
 
 export function registerIpcHandlers(): void {

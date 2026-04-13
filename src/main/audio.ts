@@ -148,8 +148,8 @@ recorder.isMeteringEnabled = true
 recorder.record()
 fputs("RECORDING\\n", stderr)
 
-signal(SIGINT) { _ in exit(0) }
-signal(SIGTERM) { _ in exit(0) }
+signal(SIGINT) { _ in recorder.stop(); exit(0) }
+signal(SIGTERM) { _ in recorder.stop(); exit(0) }
 
 // Output audio levels to stderr every 100ms for real-time visualization
 Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in

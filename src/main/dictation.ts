@@ -292,14 +292,18 @@ export async function startCommandMode(): Promise<void> {
     // Get selected text first
     const selectedText = await getSelectedText()
 
-    const soundEffects = getSetting('soundEffects')
-    if (soundEffects) {
+    if (getSetting('muteMusic')) {
+      muteMusic().catch(() => {})
+    }
+    if (getSetting('soundEffects')) {
       playSound('start').catch(() => {})
     }
 
     dictationStartTime = Date.now()
     setState('recording')
-    startRecording(getSetting('microphone'))
+    startRecording(getSetting('microphone')).catch(err => log(`Command recording error: ${err}`))
+    startAudioLevelUpdates()
+    rememberActiveApp().catch(() => {})
 
     // Store selected text for when recording stops
     selectedTextForCommand = selectedText
@@ -318,6 +322,7 @@ export async function stopCommandMode(): Promise<void> {
 
   try {
     setState('transcribing')
+    stopAudioLevelUpdates()
     resetCostEstimate()
 
     const result = await stopRecording()
@@ -354,11 +359,13 @@ export async function stopCommandMode(): Promise<void> {
     if (soundEffects) {
       playSound('stop').catch(() => {})
     }
+    if (getSetting('muteMusic')) unmuteMusic().catch(() => {})
 
     setState('idle')
     cleanupTempFiles()
   } catch (err) {
     console.error('Command mode error:', err)
+    if (getSetting('muteMusic')) unmuteMusic().catch(() => {})
     setState('error', { message: err instanceof Error ? err.message : 'Грешка при обработка' })
     setTimeout(() => setState('idle'), 3000)
     cleanupTempFiles()
