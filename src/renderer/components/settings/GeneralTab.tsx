@@ -26,7 +26,7 @@ export default function GeneralTab({ settings, onUpdate }: GeneralTabProps) {
         </h3>
         <div className="space-y-2">
           <ShortcutRow label={t('settings.pushToTalk')} value={settings.hotkey} settingKey="hotkey" onUpdate={onUpdate} />
-          <ShortcutRow label={t('settings.commandMode')} value={settings.commandHotkey} settingKey="commandHotkey" onUpdate={onUpdate} />
+          <ShortcutRow label={t('settings.commandMode')} value={settings.commandHotkey} settingKey="commandHotkey" onUpdate={onUpdate} hint="Маркирай текст → задръж → кажи команда (напр. „преведи", „съкрати", „сложи в списък")" />
           <ShortcutRow label={t('settings.dismiss')} value={settings.dismissHotkey} settingKey="dismissHotkey" onUpdate={onUpdate} />
           <ShortcutRow label={t('settings.undo')} value={settings.undoHotkey} settingKey="undoHotkey" onUpdate={onUpdate} />
           <ShortcutRow label={t('settings.polishPaste')} value={settings.polishPasteHotkey} settingKey="polishPasteHotkey" onUpdate={onUpdate} />
@@ -209,7 +209,7 @@ function displayValue(v: string): string {
     .replace(/\+/g, ' + ')
 }
 
-function ShortcutRow({ label, value, settingKey, onUpdate }: { label: string; value: string; settingKey: string; onUpdate: (key: string, value: unknown) => void }) {
+function ShortcutRow({ label, value, settingKey, onUpdate, hint }: { label: string; value: string; settingKey: string; onUpdate: (key: string, value: unknown) => void; hint?: string }) {
   const [editing, setEditing] = useState(false)
   const [comboParts, setComboParts] = useState<string[]>([])
   const [comboTimer, setComboTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
@@ -255,23 +255,6 @@ function ShortcutRow({ label, value, settingKey, onUpdate }: { label: string; va
     setComboParts([])
   }
 
-  // Fn button for hold-to-talk shortcuts (macOS only)
-  const handleFnClick = () => {
-    if (comboTimer) clearTimeout(comboTimer)
-    const newParts = [...comboParts]
-    if (!newParts.some(p => p === 'Fn')) {
-      newParts.unshift('Fn') // Fn goes first
-    }
-    setComboParts(newParts)
-    // Save after a short delay to allow adding more modifiers
-    const timer = setTimeout(() => {
-      onUpdate(settingKey, newParts.join('+'))
-      setEditing(false)
-      setComboParts([])
-    }, 500)
-    setComboTimer(timer)
-  }
-
   const editingDisplay = comboParts.length > 0
     ? displayValue(comboParts.join('+')) + ' ...'
     : (isHoldToTalk ? 'Натисни клавиш...' : 'Натисни комбинация...')
@@ -281,18 +264,11 @@ function ShortcutRow({ label, value, settingKey, onUpdate }: { label: string; va
       className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
       onClick={() => !editing && startEditing()}
     >
-      <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+        {hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
+      </div>
       <div className="flex items-center gap-1.5">
-        {editing && isHoldToTalk && isMac && (
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => { e.stopPropagation(); handleFnClick() }}
-            className="px-2 py-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded text-xs font-mono text-gray-700 dark:text-gray-200 transition-colors"
-            title="Fn / Globe key"
-          >
-            🌐 Fn
-          </button>
-        )}
         {editing ? (
           <kbd
             tabIndex={0}

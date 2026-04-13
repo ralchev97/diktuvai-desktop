@@ -78,17 +78,7 @@ export default function HotkeyStep() {
     }
   }
 
-  const handleFnClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (comboTimer) clearTimeout(comboTimer)
-    const newParts = [...comboParts]
-    if (!newParts.some(p => p === 'Fn')) {
-      newParts.unshift('Fn')
-    }
-    setComboParts(newParts)
-    const timer = setTimeout(() => saveHotkey(newParts.join('+')), 500)
-    setComboTimer(timer)
-  }
+  // Fn key removed — causes system conflicts (emoji picker / input switching)
 
   const handleBlur = () => {
     if (comboTimer) clearTimeout(comboTimer)
@@ -125,15 +115,6 @@ export default function HotkeyStep() {
                 ? displayValue(comboParts.join('+')) + ' ...'
                 : (isMac ? t('onboarding.pressNewKeyMac') : t('onboarding.pressNewKeyWin'))}
             </p>
-            {isMac && (
-              <button
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={handleFnClick}
-                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-lg text-xs font-mono text-gray-700 dark:text-gray-200 transition-colors"
-              >
-                🌐 Fn
-              </button>
-            )}
           </div>
         ) : (
           <>
