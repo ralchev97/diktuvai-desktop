@@ -26,7 +26,7 @@ export default function GeneralTab({ settings, onUpdate }: GeneralTabProps) {
         </h3>
         <div className="space-y-2">
           <ShortcutRow label={t('settings.pushToTalk')} value={settings.hotkey} settingKey="hotkey" onUpdate={onUpdate} />
-          <ShortcutRow label={t('settings.commandMode')} value={settings.commandHotkey} settingKey="commandHotkey" onUpdate={onUpdate} hint="Маркирай текст → задръж → кажи команда (напр. „преведи", „съкрати", „сложи в списък")" />
+          <ShortcutRow label={t('settings.commandMode')} value={settings.commandHotkey} settingKey="commandHotkey" onUpdate={onUpdate} hint='Маркирай текст, задръж бутона, кажи команда (напр. "преведи", "съкрати")' />
           <ShortcutRow label={t('settings.dismiss')} value={settings.dismissHotkey} settingKey="dismissHotkey" onUpdate={onUpdate} />
           <ShortcutRow label={t('settings.undo')} value={settings.undoHotkey} settingKey="undoHotkey" onUpdate={onUpdate} />
           <ShortcutRow label={t('settings.polishPaste')} value={settings.polishPasteHotkey} settingKey="polishPasteHotkey" onUpdate={onUpdate} />
