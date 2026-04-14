@@ -176,8 +176,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('app:openExternal', (_event, url: string) => {
     try {
       const parsed = new URL(url)
-      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-        throw new Error('Only HTTP(S) URLs allowed')
+      const allowed = ['https:', 'http:', 'x-apple.systempreferences:']
+      if (!allowed.includes(parsed.protocol)) {
+        throw new Error('URL protocol not allowed')
       }
     } catch (e) {
       if (e instanceof TypeError) throw new Error('Invalid URL')

@@ -6,29 +6,38 @@ interface AccessibilityStepProps {
 }
 
 export default function AccessibilityStep({ onStatusChange }: AccessibilityStepProps) {
-  const [granted, setGranted] = useState(false)
-  const [opened, setOpened] = useState(false)
+  const [accessibilityOk, setAccessibilityOk] = useState(false)
+  const [inputMonitoringOk, setInputMonitoringOk] = useState(false)
 
-  // Open Settings automatically on mount
+  // Poll accessibility every 1.5s
   useEffect(() => {
-    api?.requestAccessibilityPermission()
-    setOpened(true)
-  }, [])
-
-  // Poll every 1.5s to detect when permission is granted
-  useEffect(() => {
-    const interval = setInterval(async () => {
+    const check = async () => {
       const perms = await api?.checkPermissions()
-      if (perms?.accessibility) {
-        setGranted(true)
-        onStatusChange?.(true)
-        clearInterval(interval)
-      }
-    }, 1500)
+      if (perms?.accessibility) setAccessibilityOk(true)
+    }
+    check()
+    const interval = setInterval(check, 1500)
     return () => clearInterval(interval)
   }, [])
 
-  if (granted) {
+  // Notify parent when both are done
+  useEffect(() => {
+    if (accessibilityOk && inputMonitoringOk) {
+      onStatusChange?.(true)
+    }
+  }, [accessibilityOk, inputMonitoringOk])
+
+  const openAccessibility = () => {
+    api?.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
+  }
+
+  const openInputMonitoring = () => {
+    api?.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent')
+  }
+
+  const allDone = accessibilityOk && inputMonitoringOk
+
+  if (allDone) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center">
         <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6 bg-green-100 dark:bg-green-900/30">
@@ -38,10 +47,10 @@ export default function AccessibilityStep({ onStatusChange }: AccessibilityStepP
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          Разрешенията са дадени!
+          Всички разрешения са дадени!
         </h2>
         <p className="text-gray-500 dark:text-gray-400 max-w-sm">
-          DiktuvAI има достъп. Натиснете Напред за да продължите.
+          Натиснете Напред за да продължите.
         </p>
       </div>
     )
@@ -49,8 +58,8 @@ export default function AccessibilityStep({ onStatusChange }: AccessibilityStepP
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center">
-      <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6 bg-amber-100 dark:bg-amber-900/30">
-        <svg className="w-10 h-10 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-amber-100 dark:bg-amber-900/30">
+        <svg className="w-8 h-8 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           <line x1="12" y1="8" x2="12" y2="12" />
           <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -61,41 +70,95 @@ export default function AccessibilityStep({ onStatusChange }: AccessibilityStepP
         Разрешения за работа
       </h2>
       <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-6">
-        DiktuvAI се нуждае от разрешения за да улавя клавишни комбинации и да вмъква текст.
+        Кликнете върху всяко разрешение, за да го настроите.
       </p>
 
-      <div className="space-y-4 max-w-md w-full">
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 text-left">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-            1. Accessibility (Достъпност)
-          </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            В отворения прозорец намерете "DiktuvAI" и включете превключвателя.
-          </p>
-        </div>
-
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 text-left">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-            2. Input Monitoring (Наблюдение на клавиатура)
-          </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Privacy &amp; Security → Input Monitoring → Включете DiktuvAI
-          </p>
-        </div>
-
-        <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
-          <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-          </svg>
-          Чакам да разрешите достъпа...
-        </div>
-
+      <div className="space-y-3 max-w-md w-full">
+        {/* Accessibility */}
         <button
-          onClick={() => api?.requestAccessibilityPermission()}
-          className="px-4 py-2 text-sm text-brand-blue hover:text-brand-blue-dark transition-colors"
+          onClick={openAccessibility}
+          className={`w-full flex items-center gap-3 p-4 rounded-xl text-left transition-colors ${
+            accessibilityOk
+              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+              : 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+          }`}
         >
-          Отвори настройките отново
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+            accessibilityOk ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+          }`}>
+            {accessibilityOk ? (
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              Accessibility (Достъпност)
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {accessibilityOk ? 'Разрешено' : 'Кликнете за да отворите настройките'}
+            </p>
+          </div>
+          {!accessibilityOk && (
+            <svg className="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          )}
         </button>
+
+        {/* Input Monitoring */}
+        <button
+          onClick={inputMonitoringOk ? undefined : openInputMonitoring}
+          className={`w-full flex items-center gap-3 p-4 rounded-xl text-left transition-colors ${
+            inputMonitoringOk
+              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+              : 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+          }`}
+        >
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+            inputMonitoringOk ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+          }`}>
+            {inputMonitoringOk ? (
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              Input Monitoring (Клавиатура)
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {inputMonitoringOk ? 'Разрешено' : 'Кликнете за да отворите настройките'}
+            </p>
+          </div>
+          {!inputMonitoringOk && (
+            <svg className="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          )}
+        </button>
+
+        {/* Manual confirm for Input Monitoring (no API to detect it) */}
+        {accessibilityOk && !inputMonitoringOk && (
+          <button
+            onClick={() => setInputMonitoringOk(true)}
+            className="w-full mt-2 px-4 py-3 bg-brand-blue hover:bg-brand-blue-dark text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            Направих го — продължи
+          </button>
+        )}
       </div>
     </div>
   )
