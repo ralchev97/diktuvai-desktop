@@ -4,6 +4,14 @@ import { platform } from 'os'
 // Prevent EPIPE crashes in dev mode
 process.stdout?.on?.('error', () => {})
 process.stderr?.on?.('error', () => {})
+
+// Global crash handlers — log and recover instead of silent death
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception:', err)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled rejection:', reason)
+})
 import { join } from 'path'
 
 const isMac = platform() === 'darwin'
@@ -281,6 +289,9 @@ app.on('will-quit', () => {
   unregisterAll()
   closeDatabase()
   cleanupTempFiles()
+  // uiohook-napi keeps a native thread alive that prevents clean exit
+  // Force exit after cleanup to avoid the app hanging
+  setTimeout(() => process.exit(0), 500)
 })
 
 app.on('window-all-closed', () => {

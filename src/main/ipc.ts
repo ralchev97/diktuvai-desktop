@@ -35,7 +35,9 @@ const ALLOWED_SETTINGS = new Set([
 export function registerIpcHandlers(): void {
   // Settings
   ipcMain.handle('settings:get', () => {
-    return getSettings()
+    const settings = getSettings()
+    // Don't expose secrets to renderer — mask actual values, provide boolean flags
+    return { ...settings, authToken: '', apiKey: settings.apiKey ? '••••••••' : '', hasApiKey: !!settings.apiKey }
   })
 
   ipcMain.handle('settings:set', (_event, key: string, value: unknown) => {

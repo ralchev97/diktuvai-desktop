@@ -147,13 +147,13 @@ export async function startDictationSession(): Promise<void> {
   try {
     dictationStartTime = Date.now()
 
-    // Remember active app + start recording in parallel — both must happen before overlay
+    // Start recording first — await it to prevent race condition on quick press/release
     rememberActiveApp().catch(() => {})
-    startRecording(getSetting('microphone')).catch(err => log(`Recording error: ${err}`))
-
-    // Mute music if enabled
     if (getSetting('muteMusic')) muteMusic().catch(() => {})
     if (getSetting('soundEffects')) playSound('start').catch(() => {})
+
+    await startRecording(getSetting('microphone'))
+
     setState('recording')
     startAudioLevelUpdates()
     log('Recording started OK')
@@ -309,10 +309,12 @@ export async function startCommandMode(): Promise<void> {
     }
 
     dictationStartTime = Date.now()
-    setState('recording')
-    startRecording(getSetting('microphone')).catch(err => log(`Command recording error: ${err}`))
-    startAudioLevelUpdates()
     rememberActiveApp().catch(() => {})
+
+    await startRecording(getSetting('microphone'))
+
+    setState('recording')
+    startAudioLevelUpdates()
 
     // Store selected text for when recording stops
     selectedTextForCommand = selectedText

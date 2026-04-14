@@ -107,7 +107,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 : 'bg-brand-blue hover:bg-brand-blue-dark'
             }`}
           >
-            {step === 'login' ? t('onboarding.finish') : t('onboarding.next')}
+            {step === 'test' ? t('onboarding.finish') : t('onboarding.next')}
           </button>
         </div>
       </div>

@@ -111,7 +111,7 @@ function apiRequest<T = unknown>(
 
   return new Promise(resolve => {
     const req = https.request(
-      { hostname: API_HOST, path, method, headers },
+      { hostname: API_HOST, path, method, headers, timeout: 15000 },
       res => {
         let data = ''
         res.on('data', (chunk: Buffer) => {
@@ -128,6 +128,7 @@ function apiRequest<T = unknown>(
         })
       }
     )
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, status: 0, data: {} as T }) })
     req.on('error', () => {
       resolve({ ok: false, status: 0, data: {} as T })
     })

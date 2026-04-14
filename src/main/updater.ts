@@ -45,8 +45,8 @@ export function initAutoUpdater(window: BrowserWindow): void {
     })
   })
 
-  autoUpdater.on('error', () => {
-    // Silently ignore update errors in dev mode
+  autoUpdater.on('error', (err) => {
+    console.error('Auto-updater error:', err?.message || err)
   })
 }
 

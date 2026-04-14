@@ -5,6 +5,12 @@ import { getDictionaryWords } from './db'
 import https from 'https'
 import FormData from 'form-data'
 import path from 'path'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import { platform } from 'os'
+import { app } from 'electron'
+
+const execAsync = promisify(exec)
 
 // Cost tracking: stores the cost estimate from the last transcription + cleanup cycle
 let lastCostEstimate = 0
@@ -159,14 +165,41 @@ async function transcribeDirect(audioFilePath: string, language?: string): Promi
 }
 
 /**
+ * Compress WAV to m4a/mp3 before uploading to proxy — 10-20x smaller file.
+ * macOS: afconvert (built-in, instant). Windows: ffmpeg if available. Falls back to WAV.
+ */
+async function compressAudioForUpload(wavPath: string): Promise<string> {
+  try {
+    if (platform() === 'darwin') {
+      const m4aPath = wavPath.replace(/\.wav$/, '.m4a')
+      await execAsync(`afconvert -f m4af -d aac -b 64000 "${wavPath}" "${m4aPath}"`, { timeout: 5000 })
+      if (fs.existsSync(m4aPath) && fs.statSync(m4aPath).size > 0) {
+        return m4aPath
+      }
+    } else {
+      // Windows: try ffmpeg
+      const mp3Path = wavPath.replace(/\.wav$/, '.mp3')
+      await execAsync(`ffmpeg -i "${wavPath}" -codec:a libmp3lame -b:a 64k -y "${mp3Path}"`, { timeout: 5000 })
+      if (fs.existsSync(mp3Path) && fs.statSync(mp3Path).size > 0) {
+        return mp3Path
+      }
+    }
+  } catch { /* compression failed — use original WAV */ }
+  return wavPath
+}
+
+/**
  * Transcribe via server proxy at diktuvai.bg.
  */
 async function transcribeViaProxy(audioFilePath: string, language?: string): Promise<string> {
   const authToken = getSetting('authToken')
   const langSetting = language || getSetting('language')
 
+  // Compress audio before upload to reduce transfer time (WAV ~160KB/5s → m4a ~10KB/5s)
+  const uploadPath = await compressAudioForUpload(audioFilePath)
+
   const form = new FormData()
-  form.append('audio', fs.createReadStream(audioFilePath))
+  form.append('audio', fs.createReadStream(uploadPath))
   form.append('language', langSetting)
   if (authToken) {
     form.append('token', authToken)
@@ -180,7 +213,8 @@ async function transcribeViaProxy(audioFilePath: string, language?: string): Pro
       port: srv.port,
       path: '/api/transcribe',
       method: 'POST',
-      headers: { ...form.getHeaders(), ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) }
+      headers: { ...form.getHeaders(), ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
+      timeout: 60000,
     }, (res) => {
       let data = ''
       res.on('data', (chunk: Buffer) => { data += chunk.toString() })
@@ -195,6 +229,7 @@ async function transcribeViaProxy(audioFilePath: string, language?: string): Pro
       })
     })
 
+    req.on('timeout', () => { req.destroy(); reject(new Error('Transcription request timed out')) })
     req.on('error', reject)
     form.pipe(req)
   })
@@ -319,7 +354,8 @@ async function cleanupViaProxy(rawText: string, options?: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
         ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-      }
+      },
+      timeout: 30000,
     }, (res) => {
       let data = ''
       res.on('data', (chunk: Buffer) => { data += chunk.toString() })
@@ -334,6 +370,7 @@ async function cleanupViaProxy(rawText: string, options?: {
       })
     })
 
+    req.on('timeout', () => { req.destroy(); reject(new Error('Cleanup request timed out')) })
     req.on('error', (err) => reject(err))
     req.write(body)
     req.end()
@@ -390,7 +427,8 @@ async function processCommandViaProxy(command: string, selectedText?: string): P
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
         ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-      }
+      },
+      timeout: 30000,
     }, (res) => {
       let data = ''
       res.on('data', (chunk: Buffer) => { data += chunk.toString() })
@@ -405,6 +443,7 @@ async function processCommandViaProxy(command: string, selectedText?: string): P
       })
     })
 
+    req.on('timeout', () => { req.destroy(); reject(new Error('Command request timed out')) })
     req.on('error', reject)
     req.write(body)
     req.end()
