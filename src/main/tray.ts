@@ -1,4 +1,4 @@
-import { Tray, Menu, nativeImage, BrowserWindow, app } from 'electron'
+import { Tray, Menu, nativeImage, BrowserWindow, app, shell } from 'electron'
 import path from 'path'
 import { platform } from 'os'
 import { getState } from './dictation'
@@ -142,6 +142,13 @@ export function updateTrayMenu(callbacks: {
     {
       label: 'История',
       click: callbacks.onShowHistory
+    },
+    { type: 'separator' },
+    {
+      label: 'Report AI Content',
+      click: () => {
+        shell.openExternal('mailto:support@diktuvai.bg?subject=Report%20Inappropriate%20AI%20Content&body=Please%20describe%20the%20inappropriate%20AI-generated%20content%20below%3A%0A%0A')
+      }
     },
     { type: 'separator' },
     {
