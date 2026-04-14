@@ -147,19 +147,15 @@ export async function startDictationSession(): Promise<void> {
   try {
     dictationStartTime = Date.now()
 
-    // Mute music if enabled
-    if (getSetting('muteMusic')) {
-      muteMusic().catch(() => {})
-    }
-
-    // Start recording FIRST — before anything else
+    // Remember active app + start recording in parallel — both must happen before overlay
+    rememberActiveApp().catch(() => {})
     startRecording(getSetting('microphone')).catch(err => log(`Recording error: ${err}`))
 
-    // Then sound + UI + active app (non-blocking)
+    // Mute music if enabled
+    if (getSetting('muteMusic')) muteMusic().catch(() => {})
     if (getSetting('soundEffects')) playSound('start').catch(() => {})
     setState('recording')
     startAudioLevelUpdates()
-    rememberActiveApp().catch(() => {})
     log('Recording started OK')
   } catch (err) {
     log(`Failed to start dictation: ${err}`)
