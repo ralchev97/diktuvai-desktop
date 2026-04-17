@@ -277,6 +277,7 @@ export async function stopDictationSession(): Promise<void> {
  */
 export function cancelDictationSession(): void {
   cancelRecording()
+  selectedTextForCommand = ''
   setState('idle')
   cleanupTempFiles()
 }

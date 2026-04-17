@@ -197,6 +197,7 @@ async function transcribeViaProxy(audioFilePath: string, language?: string): Pro
 
   // Compress audio before upload to reduce transfer time (WAV ~160KB/5s → m4a ~10KB/5s)
   const uploadPath = await compressAudioForUpload(audioFilePath)
+  const compressedPath = uploadPath !== audioFilePath ? uploadPath : null
 
   const form = new FormData()
   form.append('audio', fs.createReadStream(uploadPath))
@@ -207,32 +208,44 @@ async function transcribeViaProxy(audioFilePath: string, language?: string): Pro
 
   const srv = getServerConfig()
 
-  return new Promise((resolve, reject) => {
-    const req = srv.protocol.request({
-      hostname: srv.hostname,
-      port: srv.port,
-      path: '/api/transcribe',
-      method: 'POST',
-      headers: { ...form.getHeaders(), ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
-      timeout: 60000,
-    }, (res) => {
-      let data = ''
-      res.on('data', (chunk: Buffer) => { data += chunk.toString() })
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data)
-          if (parsed.error) reject(new Error(parsed.error))
-          else resolve(parsed.text || data)
-        } catch {
-          resolve(data)
-        }
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      const req = srv.protocol.request({
+        hostname: srv.hostname,
+        port: srv.port,
+        path: '/api/transcribe',
+        method: 'POST',
+        headers: { ...form.getHeaders(), ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
+        timeout: 60000,
+      }, (res) => {
+        let data = ''
+        res.on('data', (chunk: Buffer) => { data += chunk.toString() })
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.error) reject(new Error(parsed.error))
+            else resolve(parsed.text || data)
+          } catch {
+            resolve(data)
+          }
+        })
       })
-    })
 
-    req.on('timeout', () => { req.destroy(); reject(new Error('Transcription request timed out')) })
-    req.on('error', reject)
-    form.pipe(req)
-  })
+      req.on('timeout', () => { req.destroy(); reject(new Error('Transcription request timed out')) })
+      req.on('error', reject)
+      // FormData streams can emit their own errors (file-read failures, etc.);
+      // without this, a stream error becomes an unhandled rejection that can
+      // crash the main process.
+      form.on('error', reject)
+      form.pipe(req)
+    })
+  } finally {
+    // Compressed intermediate (m4a/mp3) created in temp — clean it up.
+    // The original WAV is managed by audio.ts cleanupTempFiles().
+    if (compressedPath) {
+      try { fs.unlinkSync(compressedPath) } catch { /* ignore */ }
+    }
+  }
 }
 
 /**
@@ -372,6 +385,7 @@ async function cleanupViaProxy(rawText: string, options?: {
 
     req.on('timeout', () => { req.destroy(); reject(new Error('Cleanup request timed out')) })
     req.on('error', (err) => reject(err))
+    req.on('socket', (sock) => sock.on('error', reject))
     req.write(body)
     req.end()
   })
@@ -445,6 +459,7 @@ async function processCommandViaProxy(command: string, selectedText?: string): P
 
     req.on('timeout', () => { req.destroy(); reject(new Error('Command request timed out')) })
     req.on('error', reject)
+    req.on('socket', (sock) => sock.on('error', reject))
     req.write(body)
     req.end()
   })

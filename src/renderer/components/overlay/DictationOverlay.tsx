@@ -34,15 +34,15 @@ function Waveform({ level }: { level: number }) {
         const value = Math.max(0, smoothBars.current[i])
 
         const minH = 2
-        const maxH = canvas.height * 0.85
+        const maxH = canvas.height * 0.9
         const h = minH + value * (maxH - minH)
-        const alpha = 0.4 + value * 0.6
+        const alpha = 0.5 + value * 0.5
 
-        // Gradient from cyan to purple
-        const hue = 200 + (i / barCount) * 60
-        c.fillStyle = `hsla(${hue}, 80%, 70%, ${alpha})`
+        // Subtle indigo → violet gradient for a modern look
+        const hue = 235 + (i / barCount) * 35
+        c.fillStyle = `hsla(${hue}, 85%, 75%, ${alpha})`
         c.beginPath()
-        c.roundRect(startX + i * (barWidth + gap), centerY - h / 2, barWidth, h, 1)
+        c.roundRect(startX + i * (barWidth + gap), centerY - h / 2, barWidth, h, 1.2)
         c.fill()
       }
 
@@ -69,67 +69,142 @@ export default function DictationOverlay() {
     }
   }, [state])
 
+  // Auto-hide limit overlay after 5 seconds
+  useEffect(() => {
+    if (state === 'limit') {
+      const timer = setTimeout(() => setVisible(false), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [state])
+
+  const handleUpgrade = () => {
+    (window as any).diktuvai?.upgradeFromLimit('pro')
+  }
+
   if (!visible) return null
 
   const isRecording = state === 'recording'
   const isProcessing = state === 'transcribing' || state === 'processing'
   const isDone = state === 'pasting'
   const isError = state === 'error'
+  const isLimit = state === 'limit'
+
+  // Modern glass pill: subtle blur, soft border, inner highlight, smoother motion.
+  const pillBase: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    background: 'linear-gradient(180deg, rgba(28, 28, 40, 0.72) 0%, rgba(14, 14, 22, 0.82) 100%)',
+    backdropFilter: 'blur(18px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(18px) saturate(160%)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    boxShadow:
+      '0 8px 24px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.06) inset',
+    borderRadius: '999px',
+    padding: '6px 14px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
+  }
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
       <style>{`
-        @keyframes popIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
-        @keyframes popOut { to { opacity: 0; transform: scale(0.85); } }
+        @keyframes popIn { from { opacity: 0; transform: translateY(4px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes popOut { to { opacity: 0; transform: translateY(4px) scale(0.9); } }
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+        @keyframes pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+        @keyframes recordGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.0); } 50% { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18); } }
       `}</style>
 
-      <div
-        style={{
-          animation: state === 'idle' ? 'popOut 0.1s ease-in forwards' : 'popIn 0.15s ease-out',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          background: 'rgba(10, 10, 18, 0.9)',
-          borderRadius: '20px',
-          padding: '5px 12px',
-        }}
-      >
-        {/* Mic icon */}
-        {isRecording && (
-          <>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(140, 180, 255, 0.7)" strokeWidth="2" strokeLinecap="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            </svg>
-            <Waveform level={audioLevel} />
-          </>
-        )}
-
-        {isProcessing && (
-          <svg
-            width="14" height="14" viewBox="0 0 24 24"
-            fill="none" stroke="rgba(140, 180, 255, 0.6)" strokeWidth="2" strokeLinecap="round"
-            style={{ animation: 'spin 1s linear infinite' }}
+      {isLimit ? (
+        <div
+          style={{
+            ...pillBase,
+            animation: 'popIn 0.18s cubic-bezier(0.2, 0.8, 0.2, 1)',
+            flexDirection: 'column',
+            gap: '8px',
+            borderRadius: '18px',
+            padding: '14px 20px',
+          }}
+        >
+          <span style={{ color: '#fbbf24', fontSize: '12px', fontWeight: 600 }}>
+            Безплатните думи свършиха
+          </span>
+          <button
+            onClick={handleUpgrade}
+            style={{
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '10px',
+              padding: '7px 18px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.35)',
+              fontFamily: '-apple-system, sans-serif',
+            }}
           >
-            <path d="M21 12a9 9 0 11-6.219-8.56" />
-          </svg>
-        )}
+            Надгради за €5/мес
+          </button>
+        </div>
+      ) : (
+        <div
+          style={{
+            ...pillBase,
+            animation: state === 'idle'
+              ? 'popOut 0.14s cubic-bezier(0.4, 0, 1, 1) forwards'
+              : 'popIn 0.18s cubic-bezier(0.2, 0.8, 0.2, 1)',
+          }}
+        >
+          {isRecording && (
+            <>
+              <svg
+                width="13" height="13" viewBox="0 0 24 24"
+                fill="none"
+                stroke="url(#micGrad)"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ flexShrink: 0, filter: 'drop-shadow(0 0 4px rgba(139, 92, 246, 0.45))' }}
+              >
+                <defs>
+                  <linearGradient id="micGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#a5b4fc" />
+                    <stop offset="100%" stopColor="#c4b5fd" />
+                  </linearGradient>
+                </defs>
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0" />
+                <line x1="12" y1="18" x2="12" y2="22" />
+              </svg>
+              <Waveform level={audioLevel} />
+            </>
+          )}
 
-        {isDone && (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        )}
+          {isProcessing && (
+            <svg
+              width="14" height="14" viewBox="0 0 24 24"
+              fill="none" stroke="rgba(180, 200, 255, 0.85)" strokeWidth="2.2" strokeLinecap="round"
+              style={{ animation: 'spin 0.9s linear infinite' }}
+            >
+              <path d="M21 12a9 9 0 11-6.219-8.56" />
+            </svg>
+          )}
 
-        {isError && (
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        )}
-      </div>
+          {isDone && (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+
+          {isError && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.6" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          )}
+        </div>
+      )}
     </div>
   )
 }

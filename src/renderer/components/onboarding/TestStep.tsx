@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import { t } from '../../i18n'
 import { api } from '../../hooks/useAPI'
 
+type ResultKind = 'success' | 'empty' | 'error'
+
 export default function TestStep() {
   const [dictState, setDictState] = useState<string>('idle')
   const [result, setResult] = useState<string>('')
+  const [resultKind, setResultKind] = useState<ResultKind>('success')
   const [tested, setTested] = useState(false)
   const [recording, setRecording] = useState(false)
   const recordingRef = useRef(false)
@@ -17,17 +20,24 @@ export default function TestStep() {
         setRecording(true)
       }
       if (state === 'idle' && recordingRef.current) {
-        if (data && typeof data === 'object' && (data as any).text) {
-          setResult((data as any).text)
+        const text = data && typeof data === 'object' ? (data as { text?: string }).text : undefined
+        if (text && text.trim()) {
+          setResult(text)
+          setResultKind('success')
         } else {
-          setResult('Микрофонът работи! Влезте в акаунта си за пълна диктовка.')
+          // Recorder started but no text came back — usually means too-short recording
+          // or no speech detected. Don't claim "it works" when we got nothing.
+          setResult('Не засякох реч. Натиснете бутона и говорете малко по-дълго (поне 1–2 секунди).')
+          setResultKind('empty')
         }
         setTested(true)
         recordingRef.current = false
         setRecording(false)
       }
       if (state === 'error') {
-        setResult('Микрофонът работи! Влезте в акаунта си за пълна диктовка.')
+        const msg = data && typeof data === 'object' ? (data as { message?: string }).message : undefined
+        setResult(msg || 'Възникна грешка при обработката на записа. Проверете микрофона и опитайте пак.')
+        setResultKind('error')
         setTested(true)
         recordingRef.current = false
         setRecording(false)
@@ -66,10 +76,26 @@ export default function TestStep() {
 
       {tested && result ? (
         <div className="flex flex-col items-center gap-4">
-          <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-            <svg className="w-10 h-10 text-brand-green" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
+          <div
+            className={`w-20 h-20 rounded-full flex items-center justify-center ${
+              resultKind === 'success'
+                ? 'bg-green-100 dark:bg-green-900/30'
+                : resultKind === 'empty'
+                ? 'bg-yellow-100 dark:bg-yellow-900/30'
+                : 'bg-red-100 dark:bg-red-900/30'
+            }`}
+          >
+            {resultKind === 'success' ? (
+              <svg className="w-10 h-10 text-brand-green" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg className={`w-10 h-10 ${resultKind === 'empty' ? 'text-yellow-500' : 'text-red-500'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="13" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            )}
           </div>
 
           <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl max-w-sm w-full">

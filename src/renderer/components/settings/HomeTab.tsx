@@ -14,12 +14,18 @@ interface Stats {
 
 export default function HomeTab() {
   const [stats, setStats] = useState<Stats | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api?.getStats?.().then(setStats).catch(() => {})
+    let cancelled = false
+    api?.getStats?.()
+      .then((s: Stats) => { if (!cancelled) { setStats(s); setLoading(false) } })
+      .catch(() => { if (!cancelled) setLoading(false) })
     // Also listen for live updates
-    const unsub = api?.onStats?.((s: unknown) => setStats(s as Stats))
-    return () => unsub?.()
+    const unsub = api?.onStats?.((s: unknown) => {
+      if (!cancelled) { setStats(s as Stats); setLoading(false) }
+    })
+    return () => { cancelled = true; unsub?.() }
   }, [])
 
   const avgTypingWpm = 40
@@ -36,6 +42,25 @@ export default function HomeTab() {
   const formatNumber = (n: number) => {
     if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
     return n.toString()
+  }
+
+  // Show skeleton tiles while the first stats response is pending so the UI
+  // doesn't momentarily display zeros (which look like "you've done nothing"
+  // to the user even when they have thousands of dictations).
+  if (loading && !stats) {
+    return (
+      <div className="space-y-6 tab-content">
+        <div className="grid grid-cols-2 gap-4" aria-busy="true">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl animate-pulse">
+              <div className="w-9 h-9 rounded-lg bg-gray-200 dark:bg-gray-700 mb-3" />
+              <div className="h-7 w-16 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+              <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (

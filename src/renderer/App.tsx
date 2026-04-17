@@ -5,6 +5,7 @@ import Onboarding from './components/onboarding/Onboarding'
 import SettingsWindow from './components/settings/SettingsWindow'
 import DictationOverlay from './components/overlay/DictationOverlay'
 import HistoryPanel from './components/history/HistoryPanel'
+import UpdateBanner from './components/UpdateBanner'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode }) {
@@ -112,5 +113,10 @@ export default function App() {
     ? <HistoryPanel />
     : <SettingsWindow />
 
-  return <ErrorBoundary>{content}</ErrorBoundary>
+  return (
+    <ErrorBoundary>
+      {content}
+      <UpdateBanner />
+    </ErrorBoundary>
+  )
 }

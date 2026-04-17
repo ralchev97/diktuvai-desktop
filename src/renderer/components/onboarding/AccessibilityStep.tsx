@@ -10,8 +10,10 @@ export default function AccessibilityStep({ onStatusChange }: AccessibilityStepP
 
   // Poll accessibility every 1.5s
   useEffect(() => {
+    let cancelled = false
     const check = async () => {
       const perms = await api?.checkPermissions()
+      if (cancelled) return
       if (perms?.accessibility) {
         setAccessibilityOk(true)
         onStatusChange?.(true)
@@ -19,8 +21,11 @@ export default function AccessibilityStep({ onStatusChange }: AccessibilityStepP
     }
     check()
     const interval = setInterval(check, 1500)
-    return () => clearInterval(interval)
-  }, [])
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [onStatusChange])
 
   const openAccessibility = () => {
     api?.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')

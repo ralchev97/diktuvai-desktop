@@ -11,6 +11,8 @@ export interface LicenseStatus {
   email: string | null
   expiresAt: string | null
   trialDaysLeft?: number | null
+  wordsUsedThisWeek?: number
+  weeklyWordLimit?: number
   features: {
     commandMode: boolean
     unlimitedDictations: boolean
@@ -197,6 +199,8 @@ export async function refreshLicense(): Promise<LicenseStatus> {
     plan?: string
     email?: string
     trialDaysLeft?: number | null
+    wordsUsedThisWeek?: number
+    weeklyLimit?: number
     error?: string
   }>('/api/license/verify', {
     token,
@@ -225,6 +229,8 @@ export async function refreshLicense(): Promise<LicenseStatus> {
     email: res.data.email || (getSetting('userEmail') as string) || null,
     expiresAt: null,
     trialDaysLeft: res.data.trialDaysLeft ?? null,
+    wordsUsedThisWeek: res.data.wordsUsedThisWeek ?? 0,
+    weeklyWordLimit: res.data.weeklyLimit ?? 1000,
     features: featuresForPlan(plan),
   }
   lastCheck = Date.now()
@@ -286,4 +292,16 @@ export function clearLicense(): void {
 export function getAuthToken(): string | null {
   const token = getSetting('authToken') as string | undefined
   return token || null
+}
+
+/**
+ * Check if the user has hit their weekly word limit.
+ * Returns true if limit reached (free plan only — paid plans are unlimited).
+ */
+export function isWordLimitReached(): boolean {
+  if (!cachedStatus) return false
+  const { weeklyWordLimit, wordsUsedThisWeek } = cachedStatus
+  if (!weeklyWordLimit || weeklyWordLimit === -1) return false // unlimited
+  if (wordsUsedThisWeek === undefined) return false
+  return wordsUsedThisWeek >= weeklyWordLimit
 }

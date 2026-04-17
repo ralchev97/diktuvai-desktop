@@ -38,9 +38,14 @@ declare global {
       requestAccessibilityPermission: () => Promise<boolean>
       checkPermissions: () => Promise<{ microphone: boolean; accessibility: boolean }>
       completeOnboarding: () => Promise<boolean>
+      getStats: () => Promise<any>
+      upgradeFromLimit: (plan?: 'starter' | 'pro') => Promise<{ url?: string; error?: string }>
+      installUpdate: () => Promise<boolean>
       onDictationState: (callback: (state: string, data?: unknown) => void) => () => void
       onStats: (callback: (stats: unknown) => void) => () => void
       onAudioLevel: (callback: (level: number) => void) => () => void
+      onUpdateDownloaded: (callback: (info: { version: string }) => void) => () => void
+      onUpdateProgress: (callback: (info: { percent: number }) => void) => () => void
     }
   }
 }

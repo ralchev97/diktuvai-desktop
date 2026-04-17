@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { t } from '../../i18n'
 import { api } from '../../hooks/useAPI'
 import Toggle from '../ui/Toggle'
@@ -14,47 +14,100 @@ export default function PersonalizationTab({ settings, onUpdate }: Personalizati
   const [newWord, setNewWord] = useState('')
   const [newTrigger, setNewTrigger] = useState('')
   const [newContent, setNewContent] = useState('')
+  const [error, setError] = useState<string>('')
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     loadData()
+    // Clean up a pending flash timer on unmount so we don't setState on an
+    // unmounted component (React StrictMode warning, real bug in slow envs).
+    return () => {
+      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current)
+    }
   }, [])
 
   const loadData = async () => {
-    const dict = await api?.getDictionary()
-    const snips = await api?.getSnippets()
-    if (dict) setDictionary(dict)
-    if (snips) setSnippets(snips)
+    try {
+      const dict = await api?.getDictionary()
+      const snips = await api?.getSnippets()
+      if (dict) setDictionary(dict)
+      if (snips) setSnippets(snips)
+    } catch (e) {
+      setError('Не мога да заредя личните данни. Рестартирай приложението.')
+    }
+  }
+
+  const flashError = (msg: string) => {
+    setError(msg)
+    if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current)
+    errorTimeoutRef.current = setTimeout(() => {
+      errorTimeoutRef.current = null
+      setError('')
+    }, 4000)
   }
 
   const handleAddWord = async () => {
     if (!newWord.trim()) return
-    const word = await api?.addWord(newWord.trim())
-    if (word) setDictionary([...dictionary, word])
-    setNewWord('')
+    try {
+      const word = await api?.addWord(newWord.trim())
+      if (word) {
+        setDictionary([...dictionary, word])
+        setNewWord('')
+      } else {
+        flashError('Думата не беше добавена. Провери дали вече съществува.')
+      }
+    } catch {
+      flashError('Грешка при добавяне на думата.')
+    }
   }
 
   const handleRemoveWord = async (id: string) => {
-    await api?.removeWord(id)
-    setDictionary(dictionary.filter(w => w.id !== id))
+    const prev = dictionary
+    setDictionary(dictionary.filter(w => w.id !== id)) // optimistic
+    try {
+      await api?.removeWord(id)
+    } catch {
+      setDictionary(prev) // revert
+      flashError('Думата не беше премахната.')
+    }
   }
 
   const handleAddSnippet = async () => {
     if (!newTrigger.trim() || !newContent.trim()) return
-    const snippet = await api?.addSnippet(newTrigger.trim(), newContent.trim())
-    if (snippet) setSnippets([...snippets, snippet])
-    setNewTrigger('')
-    setNewContent('')
+    try {
+      const snippet = await api?.addSnippet(newTrigger.trim(), newContent.trim())
+      if (snippet) {
+        setSnippets([...snippets, snippet])
+        setNewTrigger('')
+        setNewContent('')
+      } else {
+        flashError('Снипетът не беше добавен. Провери дали триггърът е уникален.')
+      }
+    } catch {
+      flashError('Грешка при добавяне на снипета.')
+    }
   }
 
   const handleRemoveSnippet = async (id: string) => {
-    await api?.removeSnippet(id)
-    setSnippets(snippets.filter(s => s.id !== id))
+    const prev = snippets
+    setSnippets(snippets.filter(s => s.id !== id)) // optimistic
+    try {
+      await api?.removeSnippet(id)
+    } catch {
+      setSnippets(prev) // revert
+      flashError('Снипетът не беше премахнат.')
+    }
   }
 
   if (!settings) return null
 
   return (
     <div className="space-y-6 tab-content">
+      {error && (
+        <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300" role="alert">
+          {error}
+        </div>
+      )}
       {/* Dictionary */}
       <section>
         <div className="flex items-center justify-between mb-3">

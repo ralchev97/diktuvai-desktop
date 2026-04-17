@@ -18,7 +18,7 @@ import {
   createCheckoutUrl,
   createPortalUrl,
 } from './license'
-import { checkForUpdates } from './updater'
+import { checkForUpdates, installDownloadedUpdate } from './updater'
 import { refreshFnHelper } from './shortcuts'
 import { clipboard } from 'electron'
 
@@ -41,8 +41,15 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('settings:set', (_event, key: string, value: unknown) => {
-    if (!ALLOWED_SETTINGS.has(key)) {
+    if (typeof key !== 'string' || !ALLOWED_SETTINGS.has(key)) {
       throw new Error(`Setting "${key}" is not allowed from renderer`)
+    }
+    // Defensive length cap for string values — a misbehaving renderer (or
+    // malicious one in a CVE scenario) shouldn't be able to write megabytes
+    // of data into electron-store. The 64 KB ceiling is generous for
+    // anything we actually persist (API keys, hotkey strings, etc.).
+    if (typeof value === 'string' && value.length > 65_536) {
+      throw new Error(`Setting "${key}" value is too large`)
     }
     setSetting(key as any, value as any)
     if (key === 'hotkey' || key === 'commandHotkey' || key === 'dismissHotkey') {
@@ -50,6 +57,24 @@ export function registerIpcHandlers(): void {
     }
     if (key === 'apiKey') {
       resetClient()
+    }
+    if (key === 'openAtLogin') {
+      // Keep the OS-level login item in sync with the store — otherwise
+      // toggling this setting in the UI silently diverges from reality.
+      try {
+        app.setLoginItemSettings({
+          openAtLogin: !!value,
+          openAsHidden: process.platform === 'darwin',
+        })
+      } catch { /* best-effort */ }
+    }
+    if (key === 'hideFromDock' && process.platform === 'darwin') {
+      // Apply the Dock visibility change immediately so the user sees the
+      // toggle take effect without a restart.
+      try {
+        if (value) app.dock?.hide()
+        else app.dock?.show()
+      } catch { /* best-effort */ }
     }
     return true
   })
@@ -76,7 +101,10 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('history:search', (_event, query: string) => {
-    return searchHistory(query)
+    if (typeof query !== 'string') return []
+    // Query is used in a LIKE clause; very long input is both useless and
+    // expensive. Clip to a reasonable upper bound.
+    return searchHistory(query.slice(0, 500))
   })
 
   ipcMain.handle('history:delete', (_event, id: string) => {
@@ -98,7 +126,11 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('dictionary:add', (_event, word: string) => {
-    return addWord(word)
+    if (typeof word !== 'string') throw new Error('Invalid word')
+    const clean = word.trim()
+    if (!clean) throw new Error('Empty word')
+    if (clean.length > 100) throw new Error('Дума е твърде дълга (макс. 100 символа)')
+    return addWord(clean)
   })
 
   ipcMain.handle('dictionary:remove', (_event, id: string) => {
@@ -117,7 +149,15 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('snippets:add', (_event, trigger: string, content: string) => {
-    return addSnippet(trigger, content)
+    if (typeof trigger !== 'string' || typeof content !== 'string') {
+      throw new Error('Invalid snippet')
+    }
+    const t = trigger.trim()
+    const c = content.trim()
+    if (!t || !c) throw new Error('Empty snippet')
+    if (t.length > 50) throw new Error('Тригерът е твърде дълъг (макс. 50 символа)')
+    if (c.length > 10_000) throw new Error('Съдържанието е твърде дълго (макс. 10 000 символа)')
+    return addSnippet(t, c)
   })
 
   ipcMain.handle('snippets:remove', (_event, id: string) => {
@@ -175,6 +215,10 @@ export function registerIpcHandlers(): void {
     return true
   })
 
+  ipcMain.handle('app:installUpdate', () => {
+    return installDownloadedUpdate()
+  })
+
   ipcMain.handle('app:openExternal', (_event, url: string) => {
     try {
       const parsed = new URL(url)
@@ -192,6 +236,26 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('app:quit', () => {
     app.quit()
+  })
+
+  // DEV ONLY: simulate word limit reached for testing — never register in production
+  if (!app.isPackaged) {
+    ipcMain.handle('dev:simulateLimit', () => {
+      const wins = BrowserWindow.getAllWindows()
+      for (const w of wins) {
+        if (!w.isDestroyed()) w.webContents.send('dictation:state', 'limit')
+      }
+      return true
+    })
+  }
+
+  ipcMain.handle('limit:upgrade', async (_event, plan: 'starter' | 'pro' = 'pro') => {
+    const { createCheckoutUrl } = await import('./license')
+    const result = await createCheckoutUrl(plan, 'monthly')
+    if (result.url) {
+      shell.openExternal(result.url)
+    }
+    return result
   })
 
   // Permissions
@@ -228,6 +292,18 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('onboarding:complete', () => {
     setSetting('onboardingComplete', true)
+
+    // Once the user finishes onboarding they know the app lives in the
+    // menu bar — keeping a Dock icon around is just clutter for an
+    // always-on utility (Wispr Flow / Superwhisper behave the same way).
+    // They can always flip `hideFromDock` back off in General settings.
+    // Only apply this if the user hasn't already explicitly set the value.
+    if (process.platform === 'darwin' && !getSetting('hideFromDock')) {
+      setSetting('hideFromDock', true)
+      try {
+        app.dock?.hide()
+      } catch { /* ignore */ }
+    }
     return true
   })
 

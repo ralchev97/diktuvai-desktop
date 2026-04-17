@@ -32,14 +32,33 @@ export default function AccountTab({ settings, onUpdate }: AccountTabProps) {
   }
 
   const handleSaveApiKey = async () => {
-    await onUpdate('apiKey', apiKeyInput)
-    await onUpdate('useServerProxy', false)
+    if (!apiKeyInput.trim()) {
+      setMsg('Въведи API key преди да запазиш.')
+      return
+    }
+    if (!apiKeyInput.startsWith('sk-')) {
+      setMsg('API key-ят трябва да започва със "sk-". Провери, че си копирал OpenAI ключа правилно.')
+      return
+    }
+    try {
+      await onUpdate('apiKey', apiKeyInput)
+      await onUpdate('useServerProxy', false)
+      setMsg('✅ API ключът е запазен. Вече използваш собствен акаунт.')
+      setApiKeyInput('')
+    } catch {
+      setMsg('Грешка при запазване на API ключа. Опитай пак.')
+    }
   }
 
   const handleUseProxy = async () => {
-    await onUpdate('useServerProxy', true)
-    await onUpdate('apiKey', '')
-    setApiKeyInput('')
+    try {
+      await onUpdate('useServerProxy', true)
+      await onUpdate('apiKey', '')
+      setApiKeyInput('')
+      setMsg('Вече използваш сървъра на DiktuvAI.')
+    } catch {
+      setMsg('Грешка при превключване към сървъра.')
+    }
   }
 
   const handleUpgrade = async (plan: 'starter' | 'pro') => {
@@ -51,14 +70,17 @@ export default function AccountTab({ settings, onUpdate }: AccountTabProps) {
         await api?.openExternal(result.url)
         setMsg('Отворих Stripe в браузъра ти. След плащането натисни „Обнови статуса".')
       } else {
-        setMsg(result?.error || 'Грешка при създаване на плащане')
+        setMsg(result?.error || 'Грешка при създаване на плащане. Провери интернет и опитай пак.')
       }
+    } catch {
+      setMsg('Няма връзка със сървъра. Провери интернет и опитай пак.')
     } finally {
       setUpgrading(false)
     }
   }
 
   const handleRefresh = async () => {
+    if (refreshing) return
     setRefreshing(true)
     setMsg(null)
     try {
@@ -69,17 +91,23 @@ export default function AccountTab({ settings, onUpdate }: AccountTabProps) {
       } else {
         setMsg('Няма активен платен план. Ако току-що плати, изчакай 10 секунди и опитай пак.')
       }
+    } catch {
+      setMsg('Няма връзка със сървъра.')
     } finally {
       setRefreshing(false)
     }
   }
 
   const handleManageSub = async () => {
-    const result = await api?.getPortalUrl()
-    if (result?.url) {
-      await api?.openExternal(result.url)
-    } else {
-      setMsg(result?.error || 'Няма активен абонамент')
+    try {
+      const result = await api?.getPortalUrl()
+      if (result?.url) {
+        await api?.openExternal(result.url)
+      } else {
+        setMsg(result?.error || 'Няма активен абонамент')
+      }
+    } catch {
+      setMsg('Няма връзка със сървъра.')
     }
   }
 

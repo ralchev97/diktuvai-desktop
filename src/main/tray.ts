@@ -33,7 +33,7 @@ export function createTray(
   return tray
 }
 
-function createTrayIcon(): nativeImage {
+function createTrayIcon(): Electron.NativeImage {
   // Create a 22x22 template image for the menu bar (macOS standard)
   // This creates a simple microphone icon
   const size = 22

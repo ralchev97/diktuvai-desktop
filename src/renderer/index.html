@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!--
+    Content Security Policy is applied from the main process via session
+    headers (see main/main.ts) rather than a meta tag, so that we can use
+    a looser policy in dev mode (Vite HMR needs inline scripts + eval)
+    and a strict policy in packaged builds.
+  -->
   <title>DiktuvAI - Диктувай</title>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900">

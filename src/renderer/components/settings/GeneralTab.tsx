@@ -141,6 +141,47 @@ export default function GeneralTab({ settings, onUpdate }: GeneralTabProps) {
 // Whether this shortcut key is a hold-to-talk style (modifiers only, including combos and Fn)
 const HOLD_TO_TALK_KEYS = new Set(['hotkey', 'commandHotkey'])
 
+// System shortcuts we refuse to rebind over. If a user tries to set one of
+// these as a DiktuvAI shortcut, every time they trigger it the app will
+// also swallow the native behavior (copy/paste/close/quit…) — which
+// creates confusing "why is the app hijacking Cmd+C?!" reports.
+// We normalise both sides to uppercase + CommandOrControl for matching.
+const RESERVED_SHORTCUTS = new Set([
+  'CommandOrControl+C',
+  'CommandOrControl+V',
+  'CommandOrControl+X',
+  'CommandOrControl+A',
+  'CommandOrControl+Z',
+  'CommandOrControl+Y',
+  'CommandOrControl+Q',
+  'CommandOrControl+W',
+  'CommandOrControl+N',
+  'CommandOrControl+T',
+  'CommandOrControl+S',
+  'CommandOrControl+P',
+  'CommandOrControl+F',
+  'CommandOrControl+1',
+  'CommandOrControl+2',
+  'CommandOrControl+3',
+  'CommandOrControl+4',
+  'CommandOrControl+5',
+  'CommandOrControl+6',
+  'CommandOrControl+7',
+  'CommandOrControl+8',
+  'CommandOrControl+9',
+  'CommandOrControl+0',
+  'CommandOrControl+Tab',
+])
+
+function isReservedShortcut(value: string): boolean {
+  if (!value) return false
+  // Accept both explicit Command/Control and CommandOrControl wrappers.
+  const normalized = value
+    .replace(/^Command\+/, 'CommandOrControl+')
+    .replace(/^Control\+/, 'CommandOrControl+')
+  return RESERVED_SHORTCUTS.has(normalized)
+}
+
 // Modifier keys that can be part of a hold-to-talk combo
 const MODIFIER_NAMES: Record<string, (location: number) => string> = {
   'Alt': (loc) => loc === 2 ? 'RightOption' : 'LeftOption',
@@ -212,10 +253,12 @@ function ShortcutRow({ label, value, settingKey, onUpdate, hint }: { label: stri
   const [editing, setEditing] = useState(false)
   const [comboParts, setComboParts] = useState<string[]>([])
   const [comboTimer, setComboTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const [warning, setWarning] = useState<string>('')
   const isHoldToTalk = HOLD_TO_TALK_KEYS.has(settingKey)
 
   const startEditing = () => {
     setComboParts([])
+    setWarning('')
     setEditing(true)
   }
 
@@ -225,6 +268,10 @@ function ShortcutRow({ label, value, settingKey, onUpdate, hint }: { label: stri
     if (!isHoldToTalk) {
       // Combo shortcuts: save immediately when a non-modifier key is pressed
       if (newValue) {
+        if (isReservedShortcut(newValue)) {
+          setWarning('Тази комбинация се използва от macOS (копиране, поставяне, затваряне и т.н.) — избери друга.')
+          return
+        }
         onUpdate(settingKey, newValue)
         setEditing(false)
       }
@@ -266,6 +313,7 @@ function ShortcutRow({ label, value, settingKey, onUpdate, hint }: { label: stri
       <div className="flex-1 min-w-0">
         <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
         {hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
+        {warning && <p className="text-xs text-amber-500 mt-0.5">{warning}</p>}
       </div>
       <div className="flex items-center gap-1.5">
         {editing ? (

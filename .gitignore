@@ -18,3 +18,9 @@ build/certs/
 # Native addon build artifacts
 native/fn-key/build/
 SIGNING_NOTES.md
+
+# Vite timestamp cache files (regenerated on every dev start)
+electron.vite.config.*.mjs
+
+# Accidentally-created literal "~/" directory (should be $HOME)
+/~/

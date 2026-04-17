@@ -67,7 +67,7 @@ const KEY_MAPPING: Record<string, number> = {
  * Returns { keycodes: number[], needsFn: boolean }
  */
 function parseHotkey(setting: string): { keycodes: number[]; needsFn: boolean } {
-  const parts = setting.split('+').map(s => s.trim())
+  const parts = setting.split('+').map(s => s.trim()).filter(Boolean)
   const keycodes: number[] = []
   let needsFn = false
 
@@ -76,6 +76,11 @@ function parseHotkey(setting: string): { keycodes: number[]; needsFn: boolean } 
       needsFn = true
     } else if (KEY_MAPPING[part]) {
       keycodes.push(KEY_MAPPING[part])
+    } else {
+      // Unknown key name — surface rather than silently dropping, otherwise
+      // a typo in settings produces a half-registered hotkey that's nearly
+      // impossible to debug from user-side.
+      console.warn(`[shortcuts] Unknown hotkey part "${part}" in setting "${setting}" — ignored.`)
     }
   }
 

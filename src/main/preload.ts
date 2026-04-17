@@ -50,6 +50,7 @@ const api = {
   // App
   getVersion: () => ipcRenderer.invoke('app:version'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkUpdates'),
+  installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   quitApp: () => ipcRenderer.invoke('app:quit'),
 
@@ -58,6 +59,9 @@ const api = {
   requestAccessibilityPermission: () => ipcRenderer.invoke('permissions:accessibility'),
   checkPermissions: () => ipcRenderer.invoke('permissions:check'),
   completeOnboarding: () => ipcRenderer.invoke('onboarding:complete'),
+
+  // Limit overlay
+  upgradeFromLimit: (plan?: 'starter' | 'pro') => ipcRenderer.invoke('limit:upgrade', plan || 'pro'),
 
   // Events from main process
   onDictationState: (callback: (state: string, data?: unknown) => void) => {
@@ -76,7 +80,19 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, level: number) => callback(level)
     ipcRenderer.on('audio:level', handler)
     return () => ipcRenderer.removeListener('audio:level', handler)
-  }
+  },
+
+  onUpdateDownloaded: (callback: (info: { version: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, info: { version: string }) => callback(info)
+    ipcRenderer.on('update:downloaded', handler)
+    return () => ipcRenderer.removeListener('update:downloaded', handler)
+  },
+
+  onUpdateProgress: (callback: (info: { percent: number }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, info: { percent: number }) => callback(info)
+    ipcRenderer.on('update:progress', handler)
+    return () => ipcRenderer.removeListener('update:progress', handler)
+  },
 }
 
 export type DiktuvAPI = typeof api
