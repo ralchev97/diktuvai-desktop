@@ -17,7 +17,7 @@ import { join } from 'path'
 const isMac = platform() === 'darwin'
 const isWin = platform() === 'win32'
 import { initDatabase, closeDatabase, getUsageStats } from './db'
-import { getSettings, getSetting, setSetting, migrateSecretsToEncrypted } from './store'
+import { getSettings, getSetting, setSetting, migrateSecretsToEncrypted, migrateDockPreference } from './store'
 import { createTray, destroyTray, updateTrayMenu, updateTrayIcon } from './tray'
 import { registerShortcuts, unregisterAll } from './shortcuts'
 import {
@@ -283,9 +283,19 @@ app.whenReady().then(async () => {
     })
   }
 
-  // Don't show in dock if setting is enabled (macOS only)
-  if (isMac && getSetting('hideFromDock')) {
-    app.dock?.hide()
+  // One-shot migration: reset hideFromDock for users affected by the v1.6.0–v1.6.3
+  // onboarding bug that silently hid the Dock icon.
+  migrateDockPreference()
+
+  // Apply Dock visibility from settings. Explicit show() ensures the icon
+  // appears even on first launch when a tray-only previous state might have
+  // lingered in the OS's app launch services cache.
+  if (isMac) {
+    if (getSetting('hideFromDock')) {
+      app.dock?.hide()
+    } else {
+      app.dock?.show()
+    }
   }
 
   // Upgrade any legacy plaintext secrets (apiKey, authToken) to OS-keychain-encrypted form.

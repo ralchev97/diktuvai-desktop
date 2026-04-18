@@ -1,6 +1,6 @@
 {
   "name": "diktuvai",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "description": "DiktuvAI - \u0413\u043b\u0430\u0441\u043e\u0432\u043e \u0434\u0438\u043a\u0442\u0443\u0432\u0430\u043d\u0435 \u0441 AI \u0437\u0430 \u0411\u044a\u043b\u0433\u0430\u0440\u0438\u044f",
   "author": "Vasil Ralchev <v_ralchev@icloud.com>",
   "main": "dist/main/main.js",
@@ -133,7 +133,8 @@
       {
         "provider": "github",
         "owner": "ralchev97",
-        "repo": "diktuvai-releases"
+        "repo": "diktuvai-releases",
+        "releaseType": "release"
       }
     ]
   }

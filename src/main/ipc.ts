@@ -292,18 +292,11 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('onboarding:complete', () => {
     setSetting('onboardingComplete', true)
-
-    // Once the user finishes onboarding they know the app lives in the
-    // menu bar — keeping a Dock icon around is just clutter for an
-    // always-on utility (Wispr Flow / Superwhisper behave the same way).
-    // They can always flip `hideFromDock` back off in General settings.
-    // Only apply this if the user hasn't already explicitly set the value.
-    if (process.platform === 'darwin' && !getSetting('hideFromDock')) {
-      setSetting('hideFromDock', true)
-      try {
-        app.dock?.hide()
-      } catch { /* ignore */ }
-    }
+    // NOTE: we used to auto-hide the Dock icon after onboarding (imitating
+    // Wispr Flow / Superwhisper). Users found it confusing — "where did the
+    // app go?" — so we keep the Dock icon visible by default. Users can
+    // still flip `hideFromDock` on from General settings if they prefer the
+    // tray-only look.
     return true
   })
 

@@ -53,6 +53,7 @@ export interface AppSettings {
   // Internal
   onboardingComplete: boolean
   uiLocale: 'bg' | 'en'
+  dockFixV1Applied: boolean
 }
 
 const defaults: AppSettings = {
@@ -95,7 +96,10 @@ const defaults: AppSettings = {
   privacyMode: false,
 
   onboardingComplete: false,
-  uiLocale: 'bg'
+  uiLocale: 'bg',
+
+  // v1.6.4 one-shot migration flag (see migrateDockPreference below).
+  dockFixV1Applied: false
 }
 
 const store = new Store<AppSettings>({
@@ -281,6 +285,19 @@ export function migrateSecretsToEncrypted(): void {
       /* leave as plaintext if somehow encryption fails */
     }
   }
+}
+
+/**
+ * v1.6.4 one-shot migration: reset `hideFromDock` to false for users whose
+ * Dock icon was silently hidden by the onboarding bug in v1.6.0 – v1.6.3.
+ * Users who deliberately chose tray-only can re-enable it in General settings.
+ */
+export function migrateDockPreference(): void {
+  if (store.get('dockFixV1Applied')) return
+  try {
+    store.set('hideFromDock', false)
+  } catch { /* ignore */ }
+  store.set('dockFixV1Applied', true)
 }
 
 export default store
