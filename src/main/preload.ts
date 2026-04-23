@@ -93,6 +93,20 @@ const api = {
     ipcRenderer.on('update:progress', handler)
     return () => ipcRenderer.removeListener('update:progress', handler)
   },
+
+  /**
+   * Emitted after the main process refreshes the license in response to a
+   * `diktuvai://` deep link (typically the Stripe checkout return flow).
+   * The renderer uses this to re-render the Account tab and show a toast.
+   */
+  onLicenseUpdated: (callback: (payload: { reason: string; license: unknown }) => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: { reason: string; license: unknown }
+    ) => callback(payload)
+    ipcRenderer.on('license:updated', handler)
+    return () => ipcRenderer.removeListener('license:updated', handler)
+  },
 }
 
 export type DiktuvAPI = typeof api

@@ -6,6 +6,7 @@ import SettingsWindow from './components/settings/SettingsWindow'
 import DictationOverlay from './components/overlay/DictationOverlay'
 import HistoryPanel from './components/history/HistoryPanel'
 import UpdateBanner from './components/UpdateBanner'
+import TrialBanner from './components/TrialBanner'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode }) {
@@ -113,10 +114,15 @@ export default function App() {
     ? <HistoryPanel />
     : <SettingsWindow />
 
+  // TrialBanner is hidden during onboarding — forcing an unauthenticated
+  // first-launch user to look at a "trial expired" banner would be jarring.
+  const showTrialBanner = view !== 'onboarding'
+
   return (
     <ErrorBoundary>
       {content}
       <UpdateBanner />
+      {showTrialBanner && <TrialBanner />}
     </ErrorBoundary>
   )
 }

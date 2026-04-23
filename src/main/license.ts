@@ -13,6 +13,14 @@ export interface LicenseStatus {
   trialDaysLeft?: number | null
   wordsUsedThisWeek?: number
   weeklyWordLimit?: number
+  /**
+   * Raw Stripe/Subscription status from the server:
+   *   'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'
+   *   | 'trial_expired' | 'expired'
+   * Null means the user never had a subscription (true free user).
+   * Used by the renderer to show lifecycle banners.
+   */
+  subscriptionStatus?: string | null
   features: {
     commandMode: boolean
     unlimitedDictations: boolean
@@ -201,6 +209,7 @@ export async function refreshLicense(): Promise<LicenseStatus> {
     trialDaysLeft?: number | null
     wordsUsedThisWeek?: number
     weeklyLimit?: number
+    subscriptionStatus?: string | null
     error?: string
   }>('/api/license/verify', {
     token,
@@ -231,6 +240,7 @@ export async function refreshLicense(): Promise<LicenseStatus> {
     trialDaysLeft: res.data.trialDaysLeft ?? null,
     wordsUsedThisWeek: res.data.wordsUsedThisWeek ?? 0,
     weeklyWordLimit: res.data.weeklyLimit ?? 1000,
+    subscriptionStatus: res.data.subscriptionStatus ?? null,
     features: featuresForPlan(plan),
   }
   lastCheck = Date.now()
