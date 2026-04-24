@@ -19,19 +19,28 @@ let lastDownloadedVersion: string | null = null
 let autoInstallTimer: ReturnType<typeof setTimeout> | null = null
 
 /**
- * Once an update is downloaded we want it applied as quickly as possible
- * without interrupting active dictation. Strategy:
- *   1. Immediately broadcast the event so the UI can show a "relaunch" banner.
- *   2. Poll the dictation state machine; as soon as it's idle for 2 minutes
- *      straight, quit-and-install. This gives users enough time to finish
- *      what they're doing but doesn't require them to notice the banner.
- *   3. electron-updater's built-in `autoInstallOnAppQuit` also applies the
- *      update on any manual quit — belt and braces.
+ * Once an update is downloaded we apply it as soon as the user is idle.
+ * Strategy:
+ *   1. Immediately broadcast the event so the UI can show a status banner
+ *      ("обновено до X.Y.Z, рестартирам автоматично…").
+ *   2. Poll the dictation state machine; as soon as it's idle for 20 s
+ *      straight, quit-and-install. Dictation sessions almost always take
+ *      under 20 s, so this won't cut anyone off mid-sentence — but it's
+ *      short enough that the restart feels automatic from the user's
+ *      perspective (no more "I saw the banner, I forgot about it, it
+ *      still hasn't restarted" confusion).
+ *   3. electron-updater's built-in `autoInstallOnAppQuit` also applies
+ *      the update on any manual quit — belt and braces.
  */
 function scheduleAutoInstall(): void {
   if (autoInstallTimer) return // already scheduled
 
-  const IDLE_THRESHOLD_MS = 2 * 60 * 1000
+  // 20 s is intentionally short. A typical dictation takes 2–8 s; even a
+  // long command-mode edit rarely runs past 15 s. The state-machine gate
+  // below means we'll still wait if the user is actively mid-dictation,
+  // so there's no risk of killing a live session.
+  const IDLE_THRESHOLD_MS = 20 * 1000
+  const TICK_MS = 2_000 // check more often so we pick up the idle window fast
   let idleSince = Date.now()
 
   const tick = () => {
@@ -39,7 +48,7 @@ function scheduleAutoInstall(): void {
     const isBusy = state !== 'idle' && state !== 'error'
     if (isBusy) {
       idleSince = Date.now() // reset idle clock
-      autoInstallTimer = setTimeout(tick, 10_000)
+      autoInstallTimer = setTimeout(tick, TICK_MS)
       return
     }
     if (Date.now() - idleSince >= IDLE_THRESHOLD_MS) {
@@ -50,10 +59,10 @@ function scheduleAutoInstall(): void {
       }
       return
     }
-    autoInstallTimer = setTimeout(tick, 10_000)
+    autoInstallTimer = setTimeout(tick, TICK_MS)
   }
 
-  autoInstallTimer = setTimeout(tick, 10_000)
+  autoInstallTimer = setTimeout(tick, TICK_MS)
 }
 
 export function initAutoUpdater(_window: BrowserWindow): void {

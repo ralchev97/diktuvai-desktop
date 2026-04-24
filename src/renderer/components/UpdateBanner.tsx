@@ -44,13 +44,20 @@ export default function UpdateBanner() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white">Обновено до {version}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Рестартирай за да приложиш</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {installing ? 'Рестартирам…' : 'Рестартирам автоматично при свободен момент'}
+          </p>
+          {/*
+            The app will restart on its own after ~20s of no active dictation
+            (see scheduleAutoInstall in main/updater.ts). We still expose a
+            "restart now" button so power users don't have to wait.
+          */}
           <button
             onClick={handleRelaunch}
             disabled={installing}
-            className="mt-3 w-full px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-900 text-xs font-medium rounded-lg transition-colors disabled:opacity-60"
+            className="mt-3 w-full px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-60 border border-white/20"
           >
-            {installing ? 'Рестартирам…' : 'Рестартирай'}
+            {installing ? 'Рестартирам…' : 'Рестартирай сега'}
           </button>
         </div>
       </div>
