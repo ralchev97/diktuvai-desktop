@@ -53,7 +53,7 @@ function scheduleAutoInstall(): void {
     }
     if (Date.now() - idleSince >= IDLE_THRESHOLD_MS) {
       try {
-        autoUpdater.quitAndInstall(false, true) // silent, forceRunAfter
+        autoUpdater.quitAndInstall(true, true) // silent, forceRunAfter
       } catch (err) {
         console.error('[updater] quitAndInstall failed:', err)
       }
@@ -118,9 +118,12 @@ export function checkForUpdates(): void {
 export function installDownloadedUpdate(): boolean {
   if (!lastDownloadedVersion) return false
   try {
-    // isSilent=false so electron-updater uses its standard relaunch UX,
-    // forceRunAfter=true so we come back up immediately after the install.
-    autoUpdater.quitAndInstall(false, true)
+    // isSilent=true: skip electron-updater's interactive installer dialog,
+    // which on macOS can get stuck waiting for a user gesture that never
+    // arrives and leaves the tray icon + app half-quit. Silent install
+    // replaces the bundle in-place and re-launches cleanly.
+    // forceRunAfter=true: bring the new version back up immediately.
+    autoUpdater.quitAndInstall(true, true)
     return true
   } catch (err) {
     console.error('[updater] manual install failed:', err)

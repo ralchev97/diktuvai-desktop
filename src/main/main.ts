@@ -469,6 +469,12 @@ app.on('will-quit', () => {
   if (statsIntervalId) { clearInterval(statsIntervalId); statsIntervalId = null }
   if (limitOverlayTimeoutId) { clearTimeout(limitOverlayTimeoutId); limitOverlayTimeoutId = null }
   unregisterAll()
+  // Destroy the tray icon BEFORE we exit — otherwise the menu bar icon
+  // lingers after an auto-update relaunch and users see "looks like it
+  // didn't restart" even though the new process is already up. The tray
+  // destroy path was previously only wired to the explicit "Quit" menu
+  // item, so auto-updater-triggered quits skipped it.
+  try { destroyTray() } catch { /* already destroyed */ }
   closeDatabase()
   cleanupTempFiles()
   // uiohook-napi keeps a native thread alive that prevents clean exit.
