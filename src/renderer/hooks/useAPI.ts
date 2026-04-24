@@ -28,6 +28,8 @@ declare global {
       getCheckoutUrl: (plan?: 'starter' | 'pro', interval?: 'monthly' | 'annual') => Promise<{ url?: string; error?: string }>
       getPortalUrl: () => Promise<{ url?: string; error?: string }>
       logout: () => Promise<boolean>
+      exportUserData: () => Promise<{ success?: boolean; path?: string; canceled?: boolean; error?: string }>
+      deleteAccount: (reason?: string) => Promise<{ success?: boolean; canceled?: boolean; error?: string }>
       getAudioDevices: () => Promise<string[]>
       getPlatform: () => 'darwin' | 'win32' | 'linux'
       getVersion: () => Promise<string>

@@ -37,6 +37,8 @@ const api = {
     ipcRenderer.invoke('license:checkoutUrl', plan, interval),
   getPortalUrl: () => ipcRenderer.invoke('license:portalUrl'),
   logout: () => ipcRenderer.invoke('license:logout'),
+  exportUserData: () => ipcRenderer.invoke('license:exportData'),
+  deleteAccount: (reason?: string) => ipcRenderer.invoke('license:deleteAccount', reason),
 
   // Audio devices
   getAudioDevices: () => ipcRenderer.invoke('audio:devices'),

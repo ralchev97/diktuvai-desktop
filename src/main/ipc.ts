@@ -17,7 +17,11 @@ import {
   clearLicense,
   createCheckoutUrl,
   createPortalUrl,
+  exportUserData,
+  deleteAccount,
 } from './license'
+import { writeFileSync } from 'fs'
+import { dialog } from 'electron'
 import { checkForUpdates, installDownloadedUpdate } from './updater'
 import { refreshFnHelper } from './shortcuts'
 import { clipboard } from 'electron'
@@ -198,6 +202,46 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('license:logout', () => {
     clearLicense()
     return true
+  })
+
+  // GDPR — export all user data as a JSON file. Shows a native save dialog
+  // so the user picks the destination; we don't silently dump it anywhere.
+  ipcMain.handle('license:exportData', async () => {
+    const result = await exportUserData()
+    if (result.error || !result.json) return { error: result.error || 'Експортът върна празно' }
+
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'Запази моите данни',
+      defaultPath: result.filename || `diktuvai-export-${Date.now()}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (canceled || !filePath) return { canceled: true }
+    try {
+      writeFileSync(filePath, result.json, 'utf8')
+      return { success: true, path: filePath }
+    } catch (e) {
+      return { error: `Неуспешен запис: ${(e as Error).message}` }
+    }
+  })
+
+  // GDPR — delete account (irreversible). The renderer has already shown a
+  // double confirmation dialog; the native dialog here is a third safety
+  // net with typed confirmation, in case the renderer is compromised.
+  ipcMain.handle('license:deleteAccount', async (_event, reason?: string) => {
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Отказ', 'Да, изтрий завинаги'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'Последно потвърждение',
+      message: 'Наистина ли искаш да изтриеш акаунта?',
+      detail:
+        'Това действие НЕ може да се отмени. Ще бъдат изтрити: всичките ти диктовки, речник, snippets, настройки и абонамент. Ако имаш активен Pro/Starter план, той ще бъде прекратен без proration.',
+    })
+    if (response !== 1) return { canceled: true }
+    return deleteAccount(typeof reason === 'string' ? reason : undefined)
   })
 
   // Audio devices

@@ -292,6 +292,124 @@ export async function createPortalUrl(): Promise<{ url?: string; error?: string 
   return { error: res.data.error || 'Грешка при отваряне на портала' }
 }
 
+/**
+ * GDPR Article 15 / 20 — request a full data export. Returns the raw JSON
+ * body the server sent, along with a suggested filename. The renderer is
+ * responsible for showing a save dialog and writing the file.
+ */
+export async function exportUserData(): Promise<{
+  json?: string
+  filename?: string
+  error?: string
+}> {
+  const token = getSetting('authToken') as string | undefined
+  if (!token) return { error: 'Не си влязъл в акаунт' }
+
+  // We can't reuse apiRequest() here because it JSON.parses the body; for the
+  // export we want the raw payload untouched. A minimal https call inline is
+  // cleaner than adding a raw mode to apiRequest.
+  const https = await import('https')
+  return new Promise(resolve => {
+    const req = https.request(
+      {
+        hostname: API_HOST,
+        path: '/api/user/export',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        timeout: 30_000,
+      },
+      res => {
+        let data = ''
+        res.on('data', (chunk: Buffer) => { data += chunk.toString() })
+        res.on('end', () => {
+          if ((res.statusCode || 0) >= 400) {
+            try {
+              const err = JSON.parse(data)
+              resolve({ error: err.error || 'Грешка при експорт' })
+            } catch {
+              resolve({ error: 'Грешка при експорт' })
+            }
+            return
+          }
+          // Pull filename out of Content-Disposition if the server sent one.
+          const cd = res.headers['content-disposition'] || ''
+          const match = /filename="([^"]+)"/.exec(cd)
+          const filename = match?.[1] || `diktuvai-export-${Date.now()}.json`
+          resolve({ json: data, filename })
+        })
+      }
+    )
+    req.on('timeout', () => { req.destroy(); resolve({ error: 'Таймаут при експорт' }) })
+    req.on('error', e => resolve({ error: `Няма връзка: ${e.message}` }))
+    req.end()
+  })
+}
+
+/**
+ * GDPR Article 17 — right to erasure. Irreversible: deletes the account on
+ * the server + cancels any paid subscription + wipes local state.
+ *
+ * Caller MUST show a confirmation dialog before invoking. The server
+ * response with `success: true` means the server-side wipe completed; we
+ * then clear local settings/tokens so the app returns to a signed-out state.
+ */
+export async function deleteAccount(
+  reason?: string
+): Promise<{ success?: boolean; error?: string }> {
+  const token = getSetting('authToken') as string | undefined
+  if (!token) return { error: 'Не си влязъл в акаунт' }
+
+  const https = await import('https')
+  const bodyStr = JSON.stringify({ reason: reason || null })
+
+  return new Promise(resolve => {
+    const req = https.request(
+      {
+        hostname: API_HOST,
+        path: '/api/user/account',
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+          'Content-Length': String(Buffer.byteLength(bodyStr)),
+        },
+        timeout: 30_000,
+      },
+      res => {
+        let data = ''
+        res.on('data', (chunk: Buffer) => { data += chunk.toString() })
+        res.on('end', () => {
+          let parsed: { success?: boolean; error?: string }
+          try {
+            parsed = JSON.parse(data)
+          } catch {
+            parsed = { error: 'Неочакван отговор от сървъра' }
+          }
+          if ((res.statusCode || 0) >= 400) {
+            resolve({ error: parsed.error || 'Грешка при изтриване' })
+            return
+          }
+          if (parsed.success) {
+            // Wipe local creds on success so the app drops straight to
+            // logged-out state even if the JWT hasn't expired yet.
+            clearLicense()
+          }
+          resolve(parsed)
+        })
+      }
+    )
+    req.on('timeout', () => { req.destroy(); resolve({ error: 'Таймаут при изтриване' }) })
+    req.on('error', e => resolve({ error: `Няма връзка: ${e.message}` }))
+    req.write(bodyStr)
+    req.end()
+  })
+}
+
 export function clearLicense(): void {
   cachedStatus = null
   lastCheck = 0
