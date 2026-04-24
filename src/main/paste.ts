@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import { platform } from 'os'
+import { nativePaste } from './native-paste'
 
 const execAsync = promisify(exec)
 
@@ -230,15 +231,35 @@ function sleep(ms: number): Promise<void> {
  *      fires reliably.
  */
 async function doPasteMac(): Promise<boolean> {
-  // Note: native CGEvent paste was tried but requires Accessibility permission
-  // on the helper binary itself (not inherited from the parent Electron process
-  // on first launch), which fails silently. Stick with osascript — it uses
-  // System Events, which the user has already authorized.
+  // Fast path: CGEventPost from inside the Electron main process. Inherits
+  // the Accessibility permission the user already granted to the app, same
+  // way our Fn-key CGEventTap does. Typical runtime ~3–8 ms.
+  //
+  // Note: the previous attempt at native CGEvent used a *separate* Swift
+  // binary (diktuvai_helper), which requires its own TCC grant that macOS
+  // does not inherit from the parent. In-process addon does NOT have that
+  // problem — it's the same approach Wispr Flow uses (their swift-helper-app
+  // is a long-running child that keeps the permission warm).
+  try {
+    const t0 = Date.now()
+    if (nativePaste()) {
+      log(`Paste via native CGEventPost OK (${Date.now() - t0}ms)`)
+      return true
+    }
+    log('Native paste returned false, falling back to osascript')
+  } catch (e) {
+    log(`Native paste threw, falling back to osascript: ${e}`)
+  }
+
+  // Fallback: osascript via System Events — slower (~90–1100 ms) but uses a
+  // TCC entry the user has already authorized for years of release history.
+  // Kept intact so the app always pastes *something*, even if a future macOS
+  // update breaks the CGEvent path or strips the accessibility grant.
   try {
     await execAsync(
       'osascript -e \'tell application "System Events" to key code 9 using {command down}\''
     )
-    log('Paste via osascript key code 9 (Cmd+V) OK')
+    log('Paste via osascript key code 9 (Cmd+V) OK [fallback]')
     return true
   } catch (e) {
     log(`osascript paste failed: ${e}`)
