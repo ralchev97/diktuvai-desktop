@@ -9,8 +9,6 @@ interface AccountTabProps {
 
 export default function AccountTab({ settings, onUpdate }: AccountTabProps) {
   const [license, setLicense] = useState<any>(null)
-  const [apiKeyVisible, setApiKeyVisible] = useState(false)
-  const [apiKeyInput, setApiKeyInput] = useState('')
   const [upgrading, setUpgrading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -29,36 +27,6 @@ export default function AccountTab({ settings, onUpdate }: AccountTabProps) {
     trial: t('account.trial'),
     starter: t('account.starter'),
     pro: t('account.pro'),
-  }
-
-  const handleSaveApiKey = async () => {
-    if (!apiKeyInput.trim()) {
-      setMsg('Въведи API key преди да запазиш.')
-      return
-    }
-    if (!apiKeyInput.startsWith('sk-')) {
-      setMsg('API key-ят трябва да започва със "sk-". Провери, че си копирал OpenAI ключа правилно.')
-      return
-    }
-    try {
-      await onUpdate('apiKey', apiKeyInput)
-      await onUpdate('useServerProxy', false)
-      setMsg('✅ API ключът е запазен. Вече използваш собствен акаунт.')
-      setApiKeyInput('')
-    } catch {
-      setMsg('Грешка при запазване на API ключа. Опитай пак.')
-    }
-  }
-
-  const handleUseProxy = async () => {
-    try {
-      await onUpdate('useServerProxy', true)
-      await onUpdate('apiKey', '')
-      setApiKeyInput('')
-      setMsg('Вече използваш сървъра на DiktuvAI.')
-    } catch {
-      setMsg('Грешка при превключване към сървъра.')
-    }
   }
 
   const handleUpgrade = async (plan: 'starter' | 'pro') => {
@@ -193,74 +161,14 @@ export default function AccountTab({ settings, onUpdate }: AccountTabProps) {
         </div>
       )}
 
-      {/* API Key Configuration */}
-      <section>
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-          {t('account.enterApiKey')}
-        </h3>
-        <p className="text-xs text-gray-400 mb-3">{t('account.apiKeyDesc')}</p>
-
-        <div className="flex gap-2 mb-3">
-          <button
-            onClick={handleUseProxy}
-            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              settings.useServerProxy
-                ? 'bg-brand-blue text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-            }`}
-          >
-            {t('account.useProxy')}
-          </button>
-          <button
-            onClick={() => onUpdate('useServerProxy', false)}
-            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              !settings.useServerProxy
-                ? 'bg-brand-blue text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-            }`}
-          >
-            {t('account.useOwnKey')}
-          </button>
-        </div>
-
-        {!settings.useServerProxy && (
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type={apiKeyVisible ? 'text' : 'password'}
-                value={apiKeyInput || settings.apiKey}
-                onChange={e => setApiKeyInput(e.target.value)}
-                placeholder="sk-..."
-                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-blue text-gray-900 dark:text-white pr-10"
-              />
-              <button
-                onClick={() => setApiKeyVisible(!apiKeyVisible)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  {apiKeyVisible ? (
-                    <>
-                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </>
-                  ) : (
-                    <>
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </>
-                  )}
-                </svg>
-              </button>
-            </div>
-            <button
-              onClick={handleSaveApiKey}
-              className="px-4 py-2 bg-brand-green hover:bg-green-600 text-white text-sm rounded-lg transition-colors"
-            >
-              {t('common.save')}
-            </button>
-          </div>
-        )}
-      </section>
+      {/*
+        NOTE: the "use your own OpenAI API key" UI was removed in v1.7.3.
+        Too confusing for users and it broke the mental model of the paid
+        plans (users expected "I'm paying €10, why am I also paying OpenAI?").
+        The underlying useServerProxy / apiKey settings are still honored by
+        main/api.ts for anyone who had them configured before the UI went
+        away, so power users aren't forced back onto proxy mode.
+      */}
 
       {/* Sign Out */}
       <section>
