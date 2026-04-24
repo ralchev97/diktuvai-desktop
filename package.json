@@ -49,6 +49,14 @@
     "productName": "DiktuvAI",
     "beforePack": "build/beforePack.js",
     "afterPack": "build/afterPack.js",
+    "protocols": [
+      {
+        "name": "DiktuvAI Protocol",
+        "schemes": [
+          "diktuvai"
+        ]
+      }
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "resources/icon.icns",

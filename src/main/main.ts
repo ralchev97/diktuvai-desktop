@@ -26,7 +26,7 @@ import {
   undoDictation, startCommandMode, stopCommandMode, getState
 } from './dictation'
 import { warmHelper } from './paste'
-import { isWordLimitReached, getLicenseStatus } from './license'
+import { isWordLimitReached, getLicenseStatus, refreshLicense } from './license'
 import { registerIpcHandlers } from './ipc'
 import { initAutoUpdater, checkForUpdates } from './updater'
 import { cleanupTempFiles } from './audio'
@@ -89,12 +89,79 @@ if (!gotLock) {
   app.quit()
 }
 
-app.on('second-instance', () => {
+// ---------------------------------------------------------------------------
+// Custom URL protocol: diktuvai://
+//
+// Used so Stripe's payment-success page (and any marketing email CTA) can
+// deep-link back into the desktop app and trigger an automatic license
+// refresh. Without this the user has to manually press "Обнови статуса"
+// after paying, which we've confirmed some users skip entirely.
+//
+//   diktuvai://refresh           → pull fresh plan from server, show toast
+//   diktuvai://payment-success   → alias for refresh (Stripe return flow)
+// ---------------------------------------------------------------------------
+
+const PROTOCOL = 'diktuvai'
+
+// Registering the protocol is a one-shot OS-level operation. macOS picks it up
+// via Info.plist in packaged builds; dev runs need an explicit registration.
+// Electron's API is idempotent so calling it on every launch is safe.
+if (process.defaultApp) {
+  // electron-vite / `npm run dev` — argv[0] is the Electron binary, argv[1] is the script
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [process.argv[1]])
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL)
+}
+
+async function handleDeepLink(url: string): Promise<void> {
+  if (!url || !url.startsWith(`${PROTOCOL}://`)) return
+  const action = url.slice(`${PROTOCOL}://`.length).replace(/\/+$/, '').toLowerCase()
+
+  // Explicit user request to return to the app — focusing the settings window
+  // here is expected behavior, not a focus-steal.
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    if (settingsWindow.isMinimized()) settingsWindow.restore()
+    settingsWindow.show()
+    settingsWindow.focus()
+    if (isMac && !getSetting('hideFromDock')) app.dock?.show()
+  }
+
+  if (action === 'refresh' || action === 'payment-success') {
+    try {
+      const fresh = await refreshLicense()
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('license:updated', {
+          reason: 'deep-link',
+          license: fresh,
+        })
+      }
+    } catch (err) {
+      console.error('[deep-link] license refresh failed:', err)
+    }
+  }
+}
+
+app.on('second-instance', (_event, argv) => {
+  // Windows / Linux: the deep-link URL is appended to argv when the OS
+  // resolves `diktuvai://...` via the registered protocol handler.
+  const deepLink = argv.find(a => a.startsWith(`${PROTOCOL}://`))
+  if (deepLink) {
+    handleDeepLink(deepLink)
+    return
+  }
   if (settingsWindow) {
     if (settingsWindow.isMinimized()) settingsWindow.restore()
     settingsWindow.show()
     settingsWindow.focus()
   }
+})
+
+// macOS delivers protocol invocations via this event, not argv.
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  handleDeepLink(url)
 })
 
 function createSettingsWindow(): BrowserWindow {
@@ -388,6 +455,14 @@ app.whenReady().then(async () => {
     loginSettings.openAsHidden = true
   }
   app.setLoginItemSettings(loginSettings)
+
+  // Cold-start via deep link (Windows/Linux): Electron passes the URL as an
+  // argv entry rather than firing open-url, so we check here on first ready.
+  const coldStartLink = process.argv.find(a => a.startsWith(`${PROTOCOL}://`))
+  if (coldStartLink) {
+    // Defer until the renderer is alive and can receive the IPC message.
+    setTimeout(() => handleDeepLink(coldStartLink), 1500)
+  }
 })
 
 app.on('will-quit', () => {

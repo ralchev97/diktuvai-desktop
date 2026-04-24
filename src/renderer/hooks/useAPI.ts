@@ -46,6 +46,7 @@ declare global {
       onAudioLevel: (callback: (level: number) => void) => () => void
       onUpdateDownloaded: (callback: (info: { version: string }) => void) => () => void
       onUpdateProgress: (callback: (info: { percent: number }) => void) => () => void
+      onLicenseUpdated: (callback: (payload: { reason: string; license: any }) => void) => () => void
     }
   }
 }
