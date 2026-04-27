@@ -84,6 +84,22 @@ export default function AccountTab({ settings, onUpdate }: AccountTabProps) {
   const planKey = license?.plan || 'free'
   const isPaid = planKey === 'pro' || planKey === 'starter'
   const trialDaysLeft = license?.trialDaysLeft
+  const subscriptionStatus = license?.subscriptionStatus as string | null | undefined
+  // past_due means Stripe failed to charge the renewal; the user is still
+  // technically on Pro/Starter but card needs updating before the grace
+  // window closes. We surface a prominent "Update card" button so the
+  // payment-failed email's instructions actually work.
+  const isPastDue = subscriptionStatus === 'past_due'
+  // Statuses that mean "user has a real Stripe customer record" — anything
+  // billing-portal can still act on. trial_expired is excluded because trial
+  // subs are fake (no Stripe customer until first paid checkout).
+  const hasStripeHistory =
+    isPaid ||
+    subscriptionStatus === 'past_due' ||
+    subscriptionStatus === 'canceled' ||
+    subscriptionStatus === 'incomplete' ||
+    subscriptionStatus === 'unpaid' ||
+    subscriptionStatus === 'expired'
 
   return (
     <div className="space-y-6 tab-content">
@@ -113,6 +129,29 @@ export default function AccountTab({ settings, onUpdate }: AccountTabProps) {
           </button>
         </div>
       </section>
+
+      {/*
+        Past-due state: payment-failed email asks the user to "обнови
+        картата" — that link only does anything if we expose a clear
+        button right here. Make it red, put it above the upgrade buttons
+        so it's the obvious first action.
+      */}
+      {isPastDue && (
+        <section className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40 rounded-xl">
+          <h3 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">
+            Плащането ти не успя
+          </h3>
+          <p className="text-xs text-red-600/80 dark:text-red-300/80 mb-3">
+            Обнови картата си, за да запазиш плана си преди абонаментът да бъде прекратен.
+          </p>
+          <button
+            onClick={handleManageSub}
+            className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
+          >
+            Обнови картата
+          </button>
+        </section>
+      )}
 
       {/* Upgrade buttons */}
       {!isPaid && (
@@ -146,7 +185,18 @@ export default function AccountTab({ settings, onUpdate }: AccountTabProps) {
         </section>
       )}
 
-      {isPaid && (
+      {/*
+        Show "Управлявай абонамент" any time the user has a real Stripe
+        customer record — paid plan, past-due, recently cancelled, etc.
+        Previously gated on `isPaid` only, which meant downgraded users
+        had no way to update their card even though their Stripe
+        customer was still alive. The payment-failed email explicitly
+        directs people here, so the button has to be present.
+
+        Hidden when isPastDue because the red "Обнови картата" CTA above
+        does the same job with more visual urgency.
+      */}
+      {hasStripeHistory && !isPastDue && (
         <button
           onClick={handleManageSub}
           className="w-full px-4 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors"
